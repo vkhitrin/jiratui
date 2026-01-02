@@ -1,9 +1,10 @@
+from atlas_doc_parser.api import parse_node
 from textual.app import ComposeResult
 from textual.containers import Center, Container, Vertical, VerticalGroup, VerticalScroll
 from textual.reactive import Reactive, reactive
 from textual.widgets import LoadingIndicator
 
-from jiratui.models import JiraIssue
+from jiratui.models import CustomFieldTypes, JiraIssue
 from jiratui.widgets.summary import IssueDescriptionWidget, IssueSummaryWidget
 
 
@@ -71,7 +72,8 @@ class WorkItemInfoContainer(Vertical):
 
     async def _setup_work_item_description(self, work_item: JiraIssue) -> None:
         if work_item.description:
-            content: str = work_item.get_description()
+            base_url = getattr(getattr(self.app, 'config', None), 'jira_base_url', None)
+            content: str = work_item.get_description(base_url=base_url)
             if content:
                 await self.issue_description_widget.update(content)
             else:
@@ -114,6 +116,32 @@ class WorkItemInfoContainer(Vertical):
         # set the description of the work item and make the widget visible
         self.run_worker(self._setup_work_item_description(work_item))
         return None
+
+    @staticmethod
+    def _extract_adf(data) -> str:
+        """Extract and convert ADF (Atlassian Document Format) to markdown.
+
+        Args:
+            data: ADF document as dict
+
+        Returns:
+            Markdown string, or empty string on error
+        """
+        try:
+            from jiratui.utils.adf_helpers import (
+                fix_adf_text_with_marks,
+                replace_media_with_text,
+            )
+
+            if isinstance(data, dict):
+                fixed_data = replace_media_with_text(data)
+                fixed_data = fix_adf_text_with_marks(fixed_data)
+                node = parse_node(fixed_data)
+                markdown = node.to_markdown(ignore_error=True)
+                return markdown
+            return ''
+        except Exception:
+            return ''
 
     async def reset_description(self) -> None:
         """Reset the description widget."""
