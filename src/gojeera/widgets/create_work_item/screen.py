@@ -10,9 +10,9 @@ from textual.widgets import Button, Input, Rule, Select, Static, TextArea
 
 from gojeera.api_controller.controller import APIControllerResponse
 from gojeera.models import IssueType, Project
-from gojeera.widgets.common.base_fields import FieldMode, LabelsAutoComplete, UserPickerWidget
+from gojeera.widgets.common.base_fields import FieldMode, UserPickerWidget
 from gojeera.widgets.common.constants import CustomFieldType
-from gojeera.widgets.common.widgets import DescriptionWidget, MultiSelectWidget
+from gojeera.widgets.common.widgets import DescriptionWidget, LabelsWidget, MultiSelectWidget
 from gojeera.widgets.create_work_item.factory import create_widgets_for_work_item_creation
 from gojeera.widgets.create_work_item.fields import (
     CreateWorkItemAssigneeSelectionInput,
@@ -250,24 +250,30 @@ class AddWorkItemScreen(Screen):
                     for user_picker in user_picker_widgets:
                         user_picker.users = users_data
 
-            # Create and mount AutoComplete widgets for labels inputs
-            all_inputs = self.additional_fields.query(Input)
-            for input_widget in all_inputs:
-                if input_widget.id == 'labels':
-                    # Get field metadata to check if required
-                    field_meta = self._field_metadata.get('labels', {})
-                    required = field_meta.get('required', False)
-                    title = field_meta.get('name', 'Labels')
+            # Replace old Input-based labels with new LabelsWidget
+            # Find and replace any Input widget with id='labels' with LabelsWidget
+            old_labels_inputs = self.additional_fields.query(Input).filter('#labels')
+            for old_input in old_labels_inputs:
+                # Get field metadata to check if required
+                field_meta = self._field_metadata.get('labels', {})
+                required = field_meta.get('required', False)
+                title = field_meta.get('name', 'Labels')
 
-                    autocomplete = LabelsAutoComplete(
-                        target=input_widget,
-                        api_controller=application.api,
-                        required=required,
-                        title=title,
-                    )
-                    await self.additional_fields.mount(autocomplete)
+                # Create new LabelsWidget with dynamic autocomplete
+                labels_widget = LabelsWidget(
+                    mode=FieldMode.CREATE,
+                    field_id='labels',
+                    title=title,
+                    required=required,
+                )
 
-    def _format_field_value(self, field_id: str, value: Any, field_metadata: dict) -> Any:
+                # Remove old input and mount new widget in its place
+                await old_input.remove()
+                await self.additional_fields.mount(labels_widget)
+
+    def _format_field_value(
+        self, field_id: str, value: Any, field_metadata: dict, widget: Widget | None = None
+    ) -> Any:
         """Format a field value based on field metadata.
 
         This consolidated logic handles different field types like user pickers, floats,
@@ -277,6 +283,7 @@ class AddWorkItemScreen(Screen):
             field_id: The Jira field ID
             value: The raw value from the form widget
             field_metadata: The field metadata from Jira's create metadata API
+            widget: Optional widget reference for special handling
 
         Returns:
             The formatted value ready for API submission, or None to skip the field.
@@ -305,7 +312,11 @@ class AddWorkItemScreen(Screen):
             and schema.get('items') == 'string'
             and field_id == 'labels'
         ):
-            if isinstance(value, str):
+            # If widget is LabelsWidget, value is already a list
+            if widget and isinstance(widget, LabelsWidget):
+                return value if isinstance(value, list) else []
+            # Otherwise handle string input (backward compatibility)
+            elif isinstance(value, str):
                 # Split by comma and strip whitespace from each label
                 labels = [label.strip() for label in value.split(',') if label.strip()]
                 return labels
@@ -356,7 +367,14 @@ class AddWorkItemScreen(Screen):
                     continue
 
                 value: Any = None
-                if isinstance(widget, MultiSelectWidget):
+
+                # Handle LabelsWidget - get value as list
+                if isinstance(widget, LabelsWidget):
+                    value = widget.get_value_for_create()
+                    if value:
+                        data[field_id] = value
+                    continue
+                elif isinstance(widget, MultiSelectWidget):
                     value = widget.get_value_for_update()
                     if value:
                         data[field_id] = value
@@ -374,7 +392,7 @@ class AddWorkItemScreen(Screen):
                 # Format the value based on field metadata using consolidated logic
                 if value and field_id in self._field_metadata:
                     field_meta = self._field_metadata[field_id]
-                    formatted_value = self._format_field_value(field_id, value, field_meta)
+                    formatted_value = self._format_field_value(field_id, value, field_meta, widget)
                     if formatted_value is not None:
                         data[field_id] = formatted_value
                 elif value:

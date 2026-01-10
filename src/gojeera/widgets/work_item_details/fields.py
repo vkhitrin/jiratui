@@ -10,7 +10,7 @@ from textual.widgets import Input, Label, ProgressBar, Select
 
 from gojeera.widgets.base import ReadOnlyField
 from gojeera.widgets.common.base_fields import FieldMode
-from gojeera.widgets.common.widgets import DateInputWidget
+from gojeera.widgets.common.widgets import DateInputWidget, LabelsWidget
 from gojeera.widgets.filters import IssueStatusSelectionInput, UserSelectionInput
 
 
@@ -162,8 +162,9 @@ class IssueSummaryField(Input):
     @property
     def validated_summary(self) -> str | None:
         if self.value:
-            return self.value.strip()
-        return self.value
+            value_str = str(self.value)
+            return value_str.strip()
+        return ''
 
 
 class WorkItemFlagField(Label):
@@ -179,28 +180,47 @@ class WorkItemFlagField(Label):
 
     def watch_show(self, value: bool = True) -> None:
         if value:
-            self.styles.display = 'block'
+            self.styles.display = 'block'  # type: ignore[assignment]
         else:
-            self.styles.display = 'none'
+            self.styles.display = 'none'  # type: ignore[assignment]
 
 
-class WorkItemLabelsField(Input):
-    """A widget to display and update the labels field of a work item."""
+class WorkItemLabelsField(LabelsWidget):
+    """A widget to display and update the labels field of a work item using textual-tags."""
 
-    update_enabled: Reactive[bool | None] = reactive(True)
+    update_enabled = reactive(True)
 
-    def __init__(self):
-        super().__init__()
-        self.border_title = 'Labels'
-        self.add_class(*['issue_details_input_field', 'cols-3'])
-        self.jira_field_key = 'labels'
-        """The id used by Jira to identify this field in the edit-metadata."""
-        self.update_is_enabled = True
-        """Indicates whether the work item allows editing/updating this field."""
+    def __init__(self, **kwargs) -> None:
+        """Initialize the labels field widget."""
+        super().__init__(
+            mode=FieldMode.UPDATE,
+            field_id='labels',
+            title='Labels',
+            **kwargs,
+        )
 
-    def on_input_changed(self, event: Input.Changed) -> None:
-        # Allow spaces in labels - no longer converting to dashes
-        pass
+    async def set_labels(self, labels: list[str]) -> None:
+        """Set the labels for this widget.
+
+        Args:
+            labels: List of label strings to display
+        """
+        # Store original value for change tracking
+        self._original_value = labels if labels else []
+
+        # Clear any existing tags first
+        await self.unselect_all_tags()
+
+        # Create visual tags for only the work item's labels
+        # Note: We don't call add_tag_values() here because that would add them
+        # to the autocomplete suggestions set, and we don't want to call
+        # _populate_with_tags() because that creates tags for ALL items in tag_values
+        if labels:
+            # Directly create visual Tag elements for only these specific labels
+            for label in labels:
+                await self.add_new_tag(label)
+            # Ensure these labels are also available in tag_values for autocomplete
+            self.add_tag_values(labels)
 
     def watch_update_enabled(self, enabled: bool = True) -> None:
         self.update_is_enabled = enabled

@@ -2,7 +2,7 @@ import asyncio
 from datetime import datetime
 from typing import Any, cast
 
-from dateutil import parser  # type:ignore[import-untyped]
+from dateutil import parser
 from textual.app import ComposeResult
 from textual.binding import Binding
 from textual.containers import Center, HorizontalGroup, ItemGrid, Right, Vertical, VerticalScroll
@@ -32,7 +32,6 @@ from gojeera.widgets.common import (
     URLWidget,
     UserPickerWidget,
 )
-from gojeera.widgets.common.base_fields import LabelsAutoComplete
 from gojeera.widgets.work_item_details.factory import create_dynamic_widgets_for_updating_work_item
 from gojeera.widgets.work_item_details.fields import (
     IssueDetailsAssigneeSelection,
@@ -275,20 +274,15 @@ class IssueDetailsWidget(Vertical):
                     pass  # TimeTrackingWidget mounted dynamically per work item
             yield DynamicFieldsWidgets()
 
-    def on_mount(self) -> None:
+    async def on_mount(self) -> None:
         """Initialize the widget state."""
+        self.log.info('IssueDetailsWidget.on_mount() called')
         # Hide containers initially until a work item is loaded
         self.loading_container.display = False
         self.content_container.display = False
 
-        # Mount the labels autocomplete widget
-        labels_field = self.work_item_labels_widget
-        application = cast('JiraApp', self.app)  # type: ignore[name-defined] # noqa: F821
-        autocomplete = LabelsAutoComplete(
-            target=labels_field,
-            api_controller=application.api,
-        )
-        self.mount(autocomplete)
+        # Note: Label suggestions are now fetched dynamically as the user types
+        # See LabelsWidget.on_input_changed() for the implementation
 
     def action_focus_widget(self, key: str) -> None:
         """Focuses a widget depending on the key pressed.
@@ -513,7 +507,7 @@ class IssueDetailsWidget(Vertical):
             # we can't determine if priority is supported; disable its selection/editing
             self.priority_selector.update_enabled = False
 
-    def watch_clear_form(self, clear: bool = False) -> None:
+    async def watch_clear_form(self, clear: bool = False) -> None:
         """Resets the fields to make sure that there are no values from the previously selected work item.
 
         Args:
@@ -538,7 +532,7 @@ class IssueDetailsWidget(Vertical):
             self.priority_selector.value = Select.BLANK
             self.priority_selector.update_enabled = True
             self.issue_due_date_field.set_original_value(None)
-            self.work_item_labels_widget.value = ''
+            await self.work_item_labels_widget.set_labels([])
             self._work_item_is_flagged = None
             self._issue_supports_flagging = True
             self.work_item_flag_widget.show = False
@@ -628,21 +622,10 @@ class IssueDetailsWidget(Vertical):
                 payload['assignee_account_id'] = self.assignee_selector.selection
 
         if self.work_item_labels_widget.update_enabled:
-            # update the issue's labels - strip whitespace and remove internal spaces
-            labels: list[str] = (
-                [
-                    label.strip().replace(' ', '')
-                    for label in self.work_item_labels_widget.value.split(',')
-                    if label.strip() and label.strip() != '-'
-                ]
-                if self.work_item_labels_widget.value
-                else []
-            )
-
-            current_labels: list[str] = list(self.issue.labels or [])
-            # Case-insensitive comparison, but preserve original case
-            if {lbl.lower() for lbl in labels} != {lbl.lower() for lbl in current_labels}:
-                # update the list of labels (empty list will remove all labels)
+            # Check if labels have changed using the widget's built-in change detection
+            if self.work_item_labels_widget.value_has_changed:
+                # Get the updated labels from the Tags widget
+                labels = self.work_item_labels_widget.get_value_for_update()
                 payload[self.work_item_labels_widget.jira_field_key] = labels
 
         # process dynamically-generated field widgets; e.g. additional system fields and custom fields
@@ -950,6 +933,11 @@ class IssueDetailsWidget(Vertical):
             `None`.
         """
 
+        self.log.info(f'Populating work item details for {work_item.key}')
+
+        # Note: Label suggestions are now fetched dynamically as the user types
+        # See LabelsWidget.on_input_changed() for the implementation
+
         # Clear the form first while content is hidden
         self.clear_form = True
 
@@ -1021,9 +1009,11 @@ class IssueDetailsWidget(Vertical):
             self._setup_time_tracking(work_item.time_tracking)
         # set up the labels; if any exists
         if work_item.labels:
-            self.work_item_labels_widget.value = ','.join(work_item.labels)
+            await self.work_item_labels_widget.set_labels(work_item.labels)
+        else:
+            await self.work_item_labels_widget.set_labels([])
         self.work_item_labels_widget.update_enabled = editable_fields.get(
-            self.work_item_labels_widget.jira_field_key
+            self.work_item_labels_widget.jira_field_key, True
         )
 
         # check if the work item has been flagged; and show a label at the top with a message for the user
@@ -1167,6 +1157,6 @@ class IssueDetailsWidget(Vertical):
             )
         else:
             # extract the key of the field used for flagging items based on the name of the field
-            work_item_flag: Any = issue.get_custom_field_value(response.result[0].id)  # type:ignore
+            work_item_flag: Any = issue.get_custom_field_value(response.result[0].id)
             self._work_item_is_flagged = True if work_item_flag else False
             self.work_item_flag_widget.show = self.issue_is_flagged

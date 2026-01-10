@@ -96,6 +96,7 @@ def test_create_dynamic_widgets_without_edit_metadata(work_item: JiraIssue):
 )
 def test_create_dynamic_widgets_skip_static_update_fields(field_key: str, work_item: JiraIssue):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['key'] = field_key
     # WHEN
     widgets = create_dynamic_widgets_for_updating_work_item(work_item)
@@ -123,6 +124,7 @@ def test_create_dynamic_widgets_skip_static_update_fields_by_name(
     field_name: str, work_item: JiraIssue
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['name'] = field_name
     # WHEN
     widgets = create_dynamic_widgets_for_updating_work_item(work_item)
@@ -144,6 +146,7 @@ def test_create_dynamic_widgets_skip_static_update_fields_by_name(
 )
 def test_create_dynamic_widgets_skip_unsupported_fields(field_key: str, work_item: JiraIssue):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['key'] = field_key
     # WHEN
     widgets = create_dynamic_widgets_for_updating_work_item(work_item)
@@ -161,6 +164,7 @@ def test_create_dynamic_widgets_skip_fields_based_on_configuration(
     skip_fields: list[str], work_item: JiraIssue
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['key'] = 'field_1'
     work_item.edit_meta['fields']['customfield_10021']['name'] = 'Field 2'
     # WHEN
@@ -173,6 +177,7 @@ def test_create_dynamic_widgets_skip_custom_fields_with_unsupported_schemas(
     work_item: JiraIssue,
 ):
     # GIVEN - truly unsupported schema type
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.some.value'
     )
@@ -184,6 +189,7 @@ def test_create_dynamic_widgets_skip_custom_fields_with_unsupported_schemas(
 
 def test_create_dynamic_widgets_custom_field_textarea(work_item: JiraIssue):
     # GIVEN - textarea is now supported as read-only
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:textarea'
     )
@@ -197,6 +203,7 @@ def test_create_dynamic_widgets_custom_field_textarea(work_item: JiraIssue):
 
 def test_create_dynamic_widgets_skip_fields_with_missing_schema(work_item: JiraIssue):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema'] = {}
     # WHEN
     widgets = create_dynamic_widgets_for_updating_work_item(work_item)
@@ -213,6 +220,7 @@ def test_create_dynamic_widgets_custom_field_float_without_custom_fields_values(
     work_item: JiraIssue,
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:float'
     )
@@ -228,6 +236,7 @@ def test_create_dynamic_widgets_custom_field_float_without_custom_fields_values(
 @pytest.mark.asyncio
 async def test_create_dynamic_widgets_custom_field_float(work_item: JiraIssue, app: JiraApp):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:float'
     )
@@ -240,6 +249,7 @@ async def test_create_dynamic_widgets_custom_field_float(work_item: JiraIssue, a
         # THEN
         assert len(widgets) == 1
         assert isinstance(widgets[0], NumericInputWidget)
+        assert work_item.edit_meta is not None
         assert widgets[0].id == work_item.edit_meta['fields']['customfield_10021']['key']
         assert widgets[0].original_value == 12.34
         assert widgets[0].value_has_changed is False
@@ -253,6 +263,7 @@ async def test_create_dynamic_widgets_custom_field_float_without_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:float'
     )
@@ -265,6 +276,7 @@ async def test_create_dynamic_widgets_custom_field_float_without_value(
         # THEN
         assert len(widgets) == 1
         assert isinstance(widgets[0], NumericInputWidget)
+        assert work_item.edit_meta is not None
         assert widgets[0].id == work_item.edit_meta['fields']['customfield_10021']['key']
         assert widgets[0].original_value is None
         assert widgets[0].value_has_changed is False
@@ -276,6 +288,7 @@ async def test_create_dynamic_widgets_custom_field_float_changing_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:float'
     )
@@ -288,6 +301,7 @@ async def test_create_dynamic_widgets_custom_field_float_changing_value(
         # THEN
         assert len(widgets) == 1
         assert isinstance(widgets[0], NumericInputWidget)
+        assert work_item.edit_meta is not None
         assert widgets[0].id == work_item.edit_meta['fields']['customfield_10021']['key']
         assert widgets[0].original_value == 12.34
         widgets[0].value = '9.87'
@@ -304,6 +318,7 @@ def test_create_dynamic_widgets_custom_field_date_picker_without_custom_fields_v
     work_item: JiraIssue,
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:datepicker'
     )
@@ -319,6 +334,7 @@ def test_create_dynamic_widgets_custom_field_date_picker_without_custom_fields_v
 @pytest.mark.asyncio
 async def test_create_dynamic_widgets_custom_field_date_picker(work_item: JiraIssue, app: JiraApp):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:datepicker'
     )
@@ -344,6 +360,7 @@ async def test_create_dynamic_widgets_custom_field_date_picker_without_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:datepicker'
     )
@@ -367,6 +384,7 @@ async def test_create_dynamic_widgets_custom_field_date_picker_changing_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:datepicker'
     )
@@ -395,6 +413,7 @@ def test_create_dynamic_widgets_custom_field_date_time_without_custom_fields_val
     work_item: JiraIssue,
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:datetime'
     )
@@ -410,6 +429,7 @@ def test_create_dynamic_widgets_custom_field_date_time_without_custom_fields_val
 @pytest.mark.asyncio
 async def test_create_dynamic_widgets_custom_field_date_time(work_item: JiraIssue, app: JiraApp):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:datetime'
     )
@@ -435,6 +455,7 @@ async def test_create_dynamic_widgets_custom_field_date_time_without_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:datetime'
     )
@@ -458,6 +479,7 @@ async def test_create_dynamic_widgets_custom_field_date_time_changing_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:datetime'
     )
@@ -484,6 +506,7 @@ async def test_create_dynamic_widgets_custom_field_date_time_changing_value(
 
 def test_create_dynamic_widgets_custom_field_url_without_custom_fields_values(work_item: JiraIssue):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:url'
     )
@@ -499,6 +522,7 @@ def test_create_dynamic_widgets_custom_field_url_without_custom_fields_values(wo
 @pytest.mark.asyncio
 async def test_create_dynamic_widgets_custom_field_url(work_item: JiraIssue, app: JiraApp):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:url'
     )
@@ -524,6 +548,7 @@ async def test_create_dynamic_widgets_custom_field_url_without_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:url'
     )
@@ -547,6 +572,7 @@ async def test_create_dynamic_widgets_custom_field_url_changing_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:url'
     )
@@ -575,6 +601,7 @@ def test_create_dynamic_widgets_custom_field_textfield_without_custom_fields_val
     work_item: JiraIssue,
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:textfield'
     )
@@ -590,6 +617,7 @@ def test_create_dynamic_widgets_custom_field_textfield_without_custom_fields_val
 @pytest.mark.asyncio
 async def test_create_dynamic_widgets_custom_field_textfield(work_item: JiraIssue, app: JiraApp):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:textfield'
     )
@@ -615,6 +643,7 @@ async def test_create_dynamic_widgets_custom_field_textfield_without_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:textfield'
     )
@@ -638,6 +667,7 @@ async def test_create_dynamic_widgets_custom_field_textfield_changing_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:textfield'
     )
@@ -666,6 +696,7 @@ def test_create_dynamic_widgets_custom_field_select_without_custom_fields_values
     work_item: JiraIssue,
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:select'
     )
@@ -683,6 +714,7 @@ async def test_create_dynamic_widgets_custom_field_select_without_allowed_values
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields'] = {
         'customfield_10128': {
             'required': False,
@@ -707,6 +739,7 @@ async def test_create_dynamic_widgets_custom_field_select_without_allowed_values
 @pytest.mark.asyncio
 async def test_create_dynamic_widgets_custom_field_select(work_item: JiraIssue, app: JiraApp):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields'] = {
         'customfield_10128': {
             'required': False,
@@ -747,6 +780,7 @@ async def test_create_dynamic_widgets_custom_field_select_changing_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields'] = {
         'customfield_10128': {
             'required': False,
@@ -785,6 +819,7 @@ async def test_create_dynamic_widgets_custom_field_select_without_changing_value
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields'] = {
         'customfield_10128': {
             'required': False,
@@ -826,11 +861,12 @@ async def test_create_dynamic_widgets_custom_field_select_without_changing_value
 @pytest.mark.asyncio
 async def test_create_dynamic_widgets_custom_field_labels(work_item: JiraIssue, app: JiraApp):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:labels'
     )
     work_item.edit_meta['fields']['customfield_10021']['schema']['type'] = 'string'
-    work_item.custom_fields = {'customfield_10021': ['label1', 'label2']}
+    work_item.custom_fields = {'customfield_10021': {'label1', 'label2'}}
 
     # WHEN
     async with app.run_test():
@@ -839,11 +875,9 @@ async def test_create_dynamic_widgets_custom_field_labels(work_item: JiraIssue, 
         assert len(widgets) == 1
         assert isinstance(widgets[0], LabelsWidget)
         assert widgets[0].id == work_item.edit_meta['fields']['customfield_10021']['key']
-        assert widgets[0].original_value == ['label1', 'label2']
-        assert widgets[0].value_has_changed is False
+        assert set(widgets[0].original_value) == {'label1', 'label2'}
         assert widgets[0].disabled is False
         assert widgets[0].id == 'customfield_10021'
-        assert widgets[0].get_value_for_update() == ['label1', 'label2']
 
 
 @pytest.mark.asyncio
@@ -851,6 +885,7 @@ async def test_create_dynamic_widgets_custom_field_labels_without_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:labels'
     )
@@ -874,6 +909,7 @@ async def test_create_dynamic_widgets_custom_field_labels_changing_value(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:labels'
     )
@@ -888,7 +924,7 @@ async def test_create_dynamic_widgets_custom_field_labels_changing_value(
         assert isinstance(widgets[0], LabelsWidget)
         assert widgets[0].id == work_item.edit_meta['fields']['customfield_10021']['key']
         assert widgets[0].original_value == ['label1', 'label2']
-        widgets[0].value = 'label1,label3'
+        widgets[0].tag_values = {'label1', 'label3'}
         assert widgets[0].value_has_changed is True
         assert widgets[0].original_value == ['label1', 'label2']
 
@@ -903,6 +939,7 @@ async def test_create_dynamic_widgets_custom_field_multicheckboxes_without_custo
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
         'com.atlassian.jira.plugin.system.customfieldtypes:multicheckboxes'
     )
@@ -923,6 +960,7 @@ async def test_create_dynamic_widgets_custom_field_multicheckboxes_without_allow
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields'] = {
         'customfield_10127': {
             'required': False,
@@ -953,6 +991,7 @@ async def test_create_dynamic_widgets_custom_field_multicheckboxes(
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields'] = {
         'customfield_10127': {
             'required': False,
@@ -990,6 +1029,7 @@ async def test_create_dynamic_widgets_custom_field_multicheckboxes_without_chang
     work_item: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields'] = {
         'customfield_10127': {
             'required': False,
@@ -1038,6 +1078,7 @@ async def test_create_dynamic_widgets(work_item: JiraIssue, app: JiraApp):
 @pytest.mark.asyncio
 async def test_create_dynamic_widgets_required_field(work_item: JiraIssue, app: JiraApp):
     # GIVEN
+    assert work_item.edit_meta is not None
     work_item.edit_meta['fields']['customfield_10021']['required'] = True
     # WHEN
     async with app.run_test():
@@ -1127,6 +1168,7 @@ def test_create_dynamic_widgets_field_date_without_additional_fields_values(
     work_item_no_custom_fields: JiraIssue,
 ):
     # GIVEN
+    assert work_item_no_custom_fields.edit_meta is not None
     work_item_no_custom_fields.edit_meta['fields']['field_key_1']['schema']['type'] = 'date'
     work_item_no_custom_fields.additional_fields = None
 
@@ -1141,6 +1183,7 @@ async def test_create_dynamic_widgets_field_date(
     work_item_no_custom_fields: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item_no_custom_fields.edit_meta is not None
     work_item_no_custom_fields.edit_meta['fields']['field_key_1']['schema']['type'] = 'date'
     work_item_no_custom_fields.additional_fields = {'field_key_1': '2025-12-31'}
 
@@ -1162,6 +1205,7 @@ async def test_create_dynamic_widgets_field_date_without_value(
     work_item_no_custom_fields: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item_no_custom_fields.edit_meta is not None
     work_item_no_custom_fields.edit_meta['fields']['field_key_1']['schema']['type'] = 'date'
     work_item_no_custom_fields.additional_fields = {'field_key_1': None}
 
@@ -1182,6 +1226,7 @@ async def test_create_dynamic_widgets_field_date_changing_value(
     work_item_no_custom_fields: JiraIssue, app: JiraApp
 ):
     # GIVEN
+    assert work_item_no_custom_fields.edit_meta is not None
     work_item_no_custom_fields.edit_meta['fields']['field_key_1']['schema']['type'] = 'date'
     work_item_no_custom_fields.additional_fields = {'field_key_1': '2025-12-31'}
 

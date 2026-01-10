@@ -343,9 +343,11 @@ def jira_issues() -> list[JiraIssue]:
 
 
 @pytest.fixture
-def jira_issues_with_custom_fields() -> list[JiraIssue]:
-    return [
-        JiraIssue(
+def jira_issue_with_custom_fields_factory():
+    """Factory fixture that creates fresh JiraIssue instances with custom field values."""
+
+    def _create_issue() -> list[JiraIssue]:
+        issue = JiraIssue(
             id='1',
             key='key-1',
             summary='abcd',
@@ -469,10 +471,18 @@ def jira_issues_with_custom_fields() -> list[JiraIssue]:
                 'customfield_5': '2025-12-30 11:22:33',
                 'customfield_6': '2025-12-31',
                 'customfield_7': {'id': '2'},
-                'customfield_8': ['label1', 'label2'],
+                'customfield_8': {'label1', 'label2'},
             },
-        ),
-    ]
+        )
+        return [issue]
+
+    return _create_issue
+
+
+@pytest.fixture(scope='function')
+def jira_issues_with_custom_fields(jira_issue_with_custom_fields_factory):
+    """Default fixture for backward compatibility - returns issue with default labels."""
+    return jira_issue_with_custom_fields_factory()
 
 
 @pytest.fixture

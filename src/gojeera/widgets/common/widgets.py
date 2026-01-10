@@ -1,29 +1,11 @@
-"""
-Unified widgets for work item field handling.
-
-This module consolidates all custom widgets from common/widgets_datetime_text.py
-and common/widgets_numeric_selection.py into a single module.
-
-Widgets included:
-- DateInputWidget: Date input with validation
-- DateTimeInputWidget: DateTime input with validation
-- TextInputWidget: Text input with change tracking
-- LabelsWidget: Comma-separated labels input
-- URLWidget: URL input with auto-prefix
-- NumericInputWidget: Numeric/float input with validation
-- SelectionWidget: Single selection dropdown
-- MultiSelectWidget: Multi-select with checkboxes
-
-All widgets work in both CREATE and UPDATE modes by extending base classes from base_fields.py.
-"""
-
 from typing import Any
 
-from dateutil.parser import isoparse  # type:ignore[import-untyped]
+from dateutil.parser import isoparse
 from textual.events import Key
 from textual.validation import Number, ValidationResult
 from textual.widgets import Input, MaskedInput, Select, SelectionList, TextArea
 from textual.widgets.selection_list import Selection
+from textual_tags import Tag, Tags
 
 from gojeera.widgets.base import DateInput
 from gojeera.widgets.common.base_fields import (
@@ -32,10 +14,6 @@ from gojeera.widgets.common.base_fields import (
     FieldMode,
     ValidationUtils,
 )
-
-# ============================================================================
-# Date and DateTime Widgets
-# ============================================================================
 
 
 class DateInputWidget(DateInput, BaseFieldWidget, BaseUpdateFieldWidget):
@@ -316,11 +294,6 @@ class DateTimeInputWidget(MaskedInput, BaseFieldWidget, BaseUpdateFieldWidget):
         return original != current
 
 
-# ============================================================================
-# Text and String Widgets
-# ============================================================================
-
-
 class TextInputWidget(Input, BaseFieldWidget, BaseUpdateFieldWidget):
     """
     Unified text input widget that works in both CREATE and UPDATE modes.
@@ -443,12 +416,9 @@ class TextInputWidget(Input, BaseFieldWidget, BaseUpdateFieldWidget):
         return ValidationUtils.values_differ(original, current, ignore_whitespace=True)
 
 
-class LabelsWidget(Input):
+class LabelsWidget(Tags):
     """
-    Unified labels input widget that works in both CREATE and UPDATE modes.
-
-    This widget handles comma-separated label input and provides proper formatting
-    for Jira API (list of strings).
+    Unified labels widget that works in both CREATE and UPDATE modes.
 
     Schema detection:
         custom_type == CustomFieldType.LABELS.value
@@ -462,7 +432,7 @@ class LabelsWidget(Input):
             title="Labels",
             required=False
         )
-        # User enters: "bug, frontend, urgent"
+        # User can select/add tags visually
         # get_value_for_create() returns: ["bug", "frontend", "urgent"]
 
     Usage in UPDATE mode:
@@ -473,11 +443,10 @@ class LabelsWidget(Input):
             original_value=["backend", "api"],
             supports_update=True
         )
-        # Displays: "backend, api"
-        # User changes to: "backend, database"
-        # get_value_for_update() returns: ["backend", "database"]
-        # value_has_changed returns: True
     """
+
+    can_focus = True
+    _class_suggestions_cache: dict[str, list[str]] = {}
 
     def __init__(
         self,
@@ -487,6 +456,7 @@ class LabelsWidget(Input):
         required: bool = False,
         original_value: list[str] | None = None,
         supports_update: bool = True,
+        allow_new_tags: bool = True,
         **kwargs,
     ):
         """
@@ -499,21 +469,41 @@ class LabelsWidget(Input):
             required: Whether the field is required
             original_value: Original labels for UPDATE mode (list of strings)
             supports_update: Whether field can be updated (UPDATE mode only)
-            **kwargs: Additional arguments passed to Input
+            allow_new_tags: Whether to allow creating new tags (default: True)
+            **kwargs: Additional arguments passed to Tags
         """
         # Store mode and original value
         self.mode = mode
-        self._original_value = original_value if mode == FieldMode.UPDATE else None
+        # Ensure original_value is always stored as a list for consistency
+        if mode == FieldMode.UPDATE and original_value:
+            self._original_value = (
+                list(original_value) if not isinstance(original_value, list) else original_value
+            )
+        else:
+            self._original_value = None
         self._supports_update = supports_update if mode == FieldMode.UPDATE else True
         self.field_id = field_id
-        # Store jira_field_key for compatibility with details.py usage
         self.jira_field_key = field_id
 
-        # Initialize Input widget
-        Input.__init__(
+        # Track last query for this instance to avoid duplicate fetches
+        self._last_query: str = ''
+
+        if original_value:
+            tag_values = (
+                list(original_value) if not isinstance(original_value, list) else original_value
+            )
+        else:
+            tag_values = []
+
+        # Initialize Tags widget
+        Tags.__init__(
             self,
-            placeholder='Enter labels (comma-separated)',
+            tag_values=tag_values,
+            show_x=True,  # Show X button to remove tags
+            start_with_tags_selected=True,  # Start with all tags selected
+            allow_new_tags=allow_new_tags,  # Allow adding new tags
             id=field_id,
+            disabled=mode == FieldMode.UPDATE and not supports_update,
             **kwargs,
         )
 
@@ -523,11 +513,6 @@ class LabelsWidget(Input):
         # Mode-specific setup
         if self.mode == FieldMode.UPDATE:
             self.add_class('issue_details_input_field')
-            # Disable if field doesn't support updates
-            self.disabled = not supports_update
-            # Set initial value from original_value (list -> comma-separated string)
-            if original_value:
-                self.value = ','.join(original_value)
         else:
             # CREATE mode specific CSS
             self.add_class('create-work-item-generic-input-field')
@@ -537,10 +522,98 @@ class LabelsWidget(Input):
             self.border_subtitle = '(*)'
             self.add_class('required')
 
+    async def add_new_tag(self, value: str) -> None:
+        """
+        Override add_new_tag to fix data_bind issue with inheritance.
+
+        The textual-tags library uses Tag(value).data_bind(Tags.show_x) which fails
+        when Tags is inherited by LabelsWidget. We override to avoid data_bind entirely.
+        """
+        # Create Tag widget and manually set show_x instead of using data_bind
+        tag = Tag(value)
+        tag.show_x = self.show_x  # Manually set the show_x value
+        await self.mount(tag, before='#input_tag')
+        self.selected_tags.add(value)
+
+        if value not in self.tag_values:
+            self.tag_values.add(value)
+
+    async def _fetch_label_suggestions_for_query(self, query: str) -> None:
+        """
+        Fetch label suggestions from Jira API for the given query.
+
+        This is called asynchronously when the user types in the input field.
+        Results are cached in the class-level cache and added to tag_values for autocomplete.
+
+        Args:
+            query: The search query string
+        """
+        if query in LabelsWidget._class_suggestions_cache:
+            # Add cached suggestions to this widget's autocomplete
+            cached_suggestions = LabelsWidget._class_suggestions_cache[query]
+            self.add_tag_values(cached_suggestions)
+            return
+
+        try:
+            app = self.app
+            if not hasattr(app, 'api'):
+                return
+
+            response = await app.api.get_label_suggestions(query=query)  # type: ignore[attr-defined]
+
+            if response.success and response.result:
+                suggestions = response.result
+                LabelsWidget._class_suggestions_cache[query] = suggestions
+                self.add_tag_values(suggestions)
+        except Exception as e:
+            self.log.error(f'Failed to fetch label suggestions for query "{query}": {e}')
+
+    def on_input_changed(self, event: Input.Changed) -> None:
+        """
+        Handle Input.Changed events from the TagInput widget.
+
+        This is called automatically by Textual when the user types in the input field.
+        We fetch label suggestions asynchronously based on the current input value.
+
+        Args:
+            event: The Input.Changed event containing the new value
+        """
+        if event.input.id != 'input_tag':
+            return
+
+        query = event.value.strip()
+
+        if len(query) < 1:
+            return
+
+        if query == self._last_query:
+            return
+
+        self._last_query = query
+
+        # Fetch suggestions in the background
+        self.run_worker(
+            self._fetch_label_suggestions_for_query(query),
+            exclusive=True,
+            name=f'fetch_labels_{query}',
+        )
+
     @property
     def original_value(self) -> list[str]:
         """Get the original labels from Jira."""
         return self._original_value or []
+
+    @property
+    def value(self) -> str:
+        """
+        Get current labels as a comma-separated string.
+
+        Returns:
+            Comma-separated string of selected labels, or empty string if no labels.
+        """
+        if not self.selected_tags:
+            return ''
+        return ','.join(sorted(self.selected_tags))
 
     def get_value_for_create(self) -> list[str]:
         """
@@ -553,11 +626,11 @@ class LabelsWidget(Input):
         if self.mode != FieldMode.CREATE:
             raise ValueError('get_value_for_create() only valid in CREATE mode')
 
-        if not self.value or not self.value.strip():
-            return []
+        # Get selected tags from Tags widget
+        selected = self.selected_tags
 
-        # Split by comma, strip whitespace, remove internal spaces, filter empty strings
-        return [label.strip().replace(' ', '') for label in self.value.split(',') if label.strip()]
+        # Remove internal spaces and filter empty strings
+        return [label.strip().replace(' ', '') for label in selected if label.strip()]
 
     def get_value_for_update(self) -> list[str]:
         """
@@ -570,11 +643,11 @@ class LabelsWidget(Input):
         if self.mode != FieldMode.UPDATE:
             raise ValueError('get_value_for_update() only valid in UPDATE mode')
 
-        if not self.value or not self.value.strip():
-            return []
+        # Get selected tags from Tags widget
+        selected = self.selected_tags
 
-        # Split by comma, strip whitespace, remove internal spaces, filter empty strings
-        return [label.strip().replace(' ', '') for label in self.value.split(',') if label.strip()]
+        # Remove internal spaces and filter empty strings
+        return [label.strip().replace(' ', '') for label in selected if label.strip()]
 
     @property
     def value_has_changed(self) -> bool:
@@ -698,11 +771,6 @@ class URLWidget(Input, BaseFieldWidget, BaseUpdateFieldWidget):
 
         # Compare stripped values
         return original != current
-
-
-# ============================================================================
-# Numeric and Selection Widgets
-# ============================================================================
 
 
 class NumericInputWidget(Input, BaseFieldWidget, BaseUpdateFieldWidget):

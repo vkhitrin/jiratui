@@ -1016,7 +1016,7 @@ async def test_custom_field_labels_with_value(
         app.screen.set_focus(labels_widget)
         assert isinstance(app.screen.focused, LabelsWidget)
         assert app.screen.focused.id == 'customfield_8'
-        assert app.screen.focused.value == 'label1,label2'
+        assert app.screen.focused.tag_values == {'label1', 'label2'}
 
 
 @pytest.mark.parametrize('custom_field_value', [None, []])
@@ -1078,7 +1078,7 @@ async def test_custom_field_labels_without_value(
         app.screen.set_focus(labels_widget)
         assert isinstance(app.screen.focused, LabelsWidget)
         assert app.screen.focused.id == 'customfield_8'
-        assert app.screen.focused.value == ''
+        assert app.screen.focused.tag_values == set()
 
 
 @patch('gojeera.widgets.screens.APIController.get_issue')

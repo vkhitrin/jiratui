@@ -40,6 +40,7 @@ dependencies = [
     "python-magic>=0.4.27",
     "textual-autocomplete>=4.0.6",
     "textual-image>=0.8.4",
+    "textual-tags",
     "textual[syntax]>=6.4.0",
     "xdg-base-dirs>=6.0.2",
 ]
@@ -76,3 +77,4 @@ exclude = ["docs", "test"]
 
 [tool.uv.sources]
 atlas-doc-parser = { git = "https://github.com/MacHu-GWU/atlas_doc_parser-project" }
+textual-tags = { git = "https://github.com/Zaloog/textual-tags" }

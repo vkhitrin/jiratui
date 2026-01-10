@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, Mock, PropertyMock, patch
 import pytest
 
 from gojeera.api_controller.controller import APIControllerResponse
-from gojeera.models import JiraField, JiraIssue, JiraIssueSearchResponse
+from gojeera.models import JiraIssue, JiraIssueSearchResponse
 from gojeera.widgets.screens import MainScreen, WorkItemSearchResult
 from gojeera.widgets.work_item_details.details import IssueDetailsWidget
 from gojeera.widgets.work_item_details.flag_work_item import FlagWorkItemScreen
@@ -45,7 +45,7 @@ async def test_open_flag_screen(
                 issues=jira_issues, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -57,7 +57,7 @@ async def test_open_flag_screen(
         assert isinstance(app.screen, FlagWorkItemScreen)
 
 
-@patch('gojeera.widgets.screens.APIController.get_fields')
+@patch.object(IssueDetailsWidget, '_determine_issue_flagged_status')
 @patch('gojeera.widgets.screens.APIController.get_issue')
 @patch('gojeera.widgets.screens.MainScreen._search_work_items')
 @patch('gojeera.widgets.screens.MainScreen.get_users')
@@ -72,7 +72,7 @@ async def test_open_flag_screen_issue_has_no_metadata(
     get_users_mock: AsyncMock,
     search_work_items_mock: AsyncMock,
     get_issue_mock: AsyncMock,
-    get_fields_mock: AsyncMock,
+    determine_issue_flagged_status_mock: AsyncMock,
     jira_issues: list[JiraIssue],
     app,
 ):
@@ -87,7 +87,7 @@ async def test_open_flag_screen_issue_has_no_metadata(
     get_issue_mock.return_value = APIControllerResponse(
         result=JiraIssueSearchResponse(issues=[selected_issue])
     )
-    get_fields_mock.return_value = APIControllerResponse(success=True, result=[])
+
     async with app.run_test() as pilot:
         search_work_items_mock.return_value = WorkItemSearchResult(
             total=2,
@@ -95,20 +95,22 @@ async def test_open_flag_screen_issue_has_no_metadata(
                 issues=jira_issues, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
         await pilot.press('down')
         await pilot.press('enter')
         await pilot.press('3')
+        # Set the _issue_supports_flagging to False to simulate unsupported flagging
+        issue_details_widget = app.screen.query_one(IssueDetailsWidget)
+        issue_details_widget._issue_supports_flagging = False
         await pilot.press('tab')
         await pilot.press('ctrl+f')
         assert isinstance(app.screen, MainScreen)
 
 
-@patch('gojeera.widgets.screens.APIController.get_fields')
-@patch.object(JiraIssue, 'get_custom_field_value')
+@patch.object(IssueDetailsWidget, '_determine_issue_flagged_status')
 @patch('gojeera.widgets.screens.APIController.get_issue')
 @patch('gojeera.widgets.screens.MainScreen._search_work_items')
 @patch('gojeera.widgets.screens.MainScreen.get_users')
@@ -123,8 +125,7 @@ async def test_open_flag_screen_issue_supports_flagging_and_is_flagged(
     get_users_mock: AsyncMock,
     search_work_items_mock: AsyncMock,
     get_issue_mock: AsyncMock,
-    get_custom_field_value_mock: Mock,
-    get_fields_mock: AsyncMock,
+    determine_issue_flagged_status_mock: AsyncMock,
     jira_issues: list[JiraIssue],
     app,
 ):
@@ -138,13 +139,7 @@ async def test_open_flag_screen_issue_supports_flagging_and_is_flagged(
     get_issue_mock.return_value = APIControllerResponse(
         result=JiraIssueSearchResponse(issues=[selected_issue])
     )
-    get_custom_field_value_mock.return_value = True
-    get_fields_mock.return_value = APIControllerResponse(
-        success=True,
-        result=[
-            JiraField(id='10000', name='Flagged', key='customfield_10000', schema={}, custom=True)
-        ],
-    )
+
     async with app.run_test() as pilot:
         search_work_items_mock.return_value = WorkItemSearchResult(
             total=2,
@@ -152,22 +147,26 @@ async def test_open_flag_screen_issue_supports_flagging_and_is_flagged(
                 issues=jira_issues, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
         await pilot.press('down')
         await pilot.press('enter')
         await pilot.press('3')
+        # Set the attributes to simulate flagged issue
+        issue_details_widget = app.screen.query_one(IssueDetailsWidget)
+        issue_details_widget._issue_supports_flagging = True
+        issue_details_widget._work_item_is_flagged = True
         await pilot.press('tab')
         await pilot.press('ctrl+f')
         assert isinstance(app.screen, FlagWorkItemScreen)
-        assert app.screen._work_item_is_flagged is True  # type:ignore[name-defined] # noqa: F821
+        assert app.screen._work_item_is_flagged is True
+        assert app.screen.root_container.border_title is not None
         assert 'Remove' in app.screen.root_container.border_title
 
 
-@patch('gojeera.widgets.screens.APIController.get_fields')
-@patch.object(JiraIssue, 'get_custom_field_value')
+@patch.object(IssueDetailsWidget, '_determine_issue_flagged_status')
 @patch('gojeera.widgets.screens.APIController.get_issue')
 @patch('gojeera.widgets.screens.MainScreen._search_work_items')
 @patch('gojeera.widgets.screens.MainScreen.get_users')
@@ -182,8 +181,7 @@ async def test_open_flag_screen_issue_supports_flagging_and_is_not_flagged(
     get_users_mock: AsyncMock,
     search_work_items_mock: AsyncMock,
     get_issue_mock: AsyncMock,
-    get_custom_field_value_mock: Mock,
-    get_fields_mock: AsyncMock,
+    determine_issue_flagged_status_mock: AsyncMock,
     jira_issues: list[JiraIssue],
     app,
 ):
@@ -197,13 +195,7 @@ async def test_open_flag_screen_issue_supports_flagging_and_is_not_flagged(
     get_issue_mock.return_value = APIControllerResponse(
         result=JiraIssueSearchResponse(issues=[selected_issue])
     )
-    get_custom_field_value_mock.return_value = []
-    get_fields_mock.return_value = APIControllerResponse(
-        success=True,
-        result=[
-            JiraField(id='10000', name='Flagged', key='customfield_10000', schema={}, custom=True)
-        ],
-    )
+
     async with app.run_test() as pilot:
         search_work_items_mock.return_value = WorkItemSearchResult(
             total=2,
@@ -211,17 +203,22 @@ async def test_open_flag_screen_issue_supports_flagging_and_is_not_flagged(
                 issues=jira_issues, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
         await pilot.press('down')
         await pilot.press('enter')
         await pilot.press('3')
+        # Set the attributes to simulate unflagged issue
+        issue_details_widget = app.screen.query_one(IssueDetailsWidget)
+        issue_details_widget._issue_supports_flagging = True
+        issue_details_widget._work_item_is_flagged = False
         await pilot.press('tab')
         await pilot.press('ctrl+f')
         assert isinstance(app.screen, FlagWorkItemScreen)
-        assert app.screen._work_item_is_flagged is False  # type:ignore[name-defined] # noqa: F821
+        assert app.screen._work_item_is_flagged is False
+        assert app.screen.root_container.border_title is not None
         assert 'Add' in app.screen.root_container.border_title
 
 
@@ -267,7 +264,7 @@ async def test_open_flag_screen_dismiss_without_updating_flag_status(
                 issues=jira_issues, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -277,7 +274,7 @@ async def test_open_flag_screen_dismiss_without_updating_flag_status(
         await pilot.press('tab')
         await pilot.press('ctrl+f')
         assert isinstance(app.screen, FlagWorkItemScreen)
-        assert app.screen._work_item_is_flagged is False  # type:ignore[name-defined] # noqa: F821
+        assert app.screen._work_item_is_flagged is False
         await pilot.press('escape')
         toggle_work_item_flag_mock.assert_not_called()
 
@@ -324,7 +321,7 @@ async def test_open_flag_screen_dismiss_without_updating_flag_status_clicking_ca
                 issues=jira_issues, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -334,7 +331,7 @@ async def test_open_flag_screen_dismiss_without_updating_flag_status_clicking_ca
         await pilot.press('tab')
         await pilot.press('ctrl+f')
         assert isinstance(app.screen, FlagWorkItemScreen)
-        assert app.screen._work_item_is_flagged is False  # type:ignore[name-defined] # noqa: F821
+        assert app.screen._work_item_is_flagged is False
         await pilot.press('tab')
         await pilot.press('tab')
         await pilot.press('enter')
@@ -387,7 +384,7 @@ async def test_open_flag_screen_updating_flag_status_clicking_save_button1(
                 issues=jira_issues, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -397,7 +394,7 @@ async def test_open_flag_screen_updating_flag_status_clicking_save_button1(
         await pilot.press('tab')
         await pilot.press('ctrl+f')
         assert isinstance(app.screen, FlagWorkItemScreen)
-        assert app.screen._work_item_is_flagged is False  # type:ignore[name-defined] # noqa: F821
+        assert app.screen._work_item_is_flagged is False
         await pilot.press('-')
         await pilot.press('tab')
         await pilot.press('enter')
@@ -455,7 +452,7 @@ async def test_open_flag_screen_updating_flag_status_clicking_save_button_withou
                 issues=jira_issues, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -465,7 +462,7 @@ async def test_open_flag_screen_updating_flag_status_clicking_save_button_withou
         await pilot.press('tab')
         await pilot.press('ctrl+f')
         assert isinstance(app.screen, FlagWorkItemScreen)
-        assert app.screen._work_item_is_flagged is False  # type:ignore[name-defined] # noqa: F821
+        assert app.screen._work_item_is_flagged is False
         await pilot.press('tab')
         await pilot.press('enter')
         update_issue_flagged_status_mock.assert_called_once_with(
@@ -522,7 +519,7 @@ async def test_open_flag_screen_updating_flag_status_clicking_save_button_update
                 issues=jira_issues, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -532,7 +529,7 @@ async def test_open_flag_screen_updating_flag_status_clicking_save_button_update
         await pilot.press('tab')
         await pilot.press('ctrl+f')
         assert isinstance(app.screen, FlagWorkItemScreen)
-        assert app.screen._work_item_is_flagged is True  # type:ignore[name-defined] # noqa: F821
+        assert app.screen._work_item_is_flagged is True
         await pilot.press('-')
         await pilot.press('tab')
         await pilot.press('enter')

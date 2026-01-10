@@ -416,7 +416,8 @@ class AsyncJiraClient(gojeeraAsyncHTTPClient):
         #       we will not create a dedicated logic for it.
         jira_base = self.base_url.rsplit('/rest/api/', 1)[0]
         full_url = f'{jira_base}/rest/api/1.0/labels/suggest'
-        params = {'query': query} if query else {}
+        # Always include query parameter, even if empty string (required by API)
+        params = {'query': query if query else ''}
 
         # Direct client call to avoid method binding issues
         try:
