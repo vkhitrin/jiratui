@@ -275,9 +275,20 @@ def create_dynamic_widgets_for_updating_work_item(
                     field_supports_update=metadata.supports_update,
                 )
             elif schema_custom_type == CustomFieldType.TEXTAREA.value:
-                # Textarea fields are read-only and not supported for updates
-                # Skip creating a widget for this field type
-                pass
+                # Textarea fields are read-only - display using ADFTextAreaWidget
+                from jiratui.widgets.common.adf_textarea import ADFTextAreaWidget
+
+                if __field_id in work_item.get_custom_fields():
+                    # get the current value of the field from the issue's custom field data
+                    value = work_item.get_custom_field_value(__field_id)
+                    widget = ADFTextAreaWidget(
+                        mode=FieldMode.UPDATE,
+                        field_id=__field_id,
+                        title=field.get('name'),
+                        required=field.get('required', False),
+                        original_value=value,
+                        field_supports_update=False,  # Always read-only
+                    )
             elif schema_custom_type == CustomFieldType.SD_REQUEST_LANGUAGE.value:
                 # Service Desk request language picker - treated as a select field
                 if __field_id in work_item.get_custom_fields():

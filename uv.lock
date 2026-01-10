@@ -205,8 +205,8 @@ wheels = [
 
 [[package]]
 name = "atlas-doc-parser"
-version = "0.1.2"
-source = { git = "https://github.com/MacHu-GWU/atlas_doc_parser-project?rev=5890609#5890609f7154af6a3f55b90174d917037cc384f9" }
+version = "1.0.1"
+source = { git = "https://github.com/MacHu-GWU/atlas_doc_parser-project#fc530e0521a04e791eec6d9eddec076b84311e65" }
 dependencies = [
     { name = "func-args" },
 ]
@@ -769,7 +769,7 @@ test = [
 
 [package.metadata]
 requires-dist = [
-    { name = "atlas-doc-parser", git = "https://github.com/MacHu-GWU/atlas_doc_parser-project?rev=5890609" },
+    { name = "atlas-doc-parser", git = "https://github.com/MacHu-GWU/atlas_doc_parser-project" },
     { name = "click", specifier = "==8.3.0" },
     { name = "gitpython", specifier = ">=3.1.45" },
     { name = "httpx", specifier = ">=0.28.1" },

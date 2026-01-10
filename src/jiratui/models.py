@@ -187,25 +187,9 @@ class IssueComment(BaseModel):
         return self.updated.strftime('%Y-%m-%d %H:%M') if self.updated else ''
 
     def get_body(self, base_url: str | None = None) -> str:
-        if not self.body:
-            return ''
-        if isinstance(self.body, str):
-            return self.body.strip()
+        from jiratui.utils.adf_helpers import convert_adf_to_markdown
 
-        # Pre-process ADF: replace mediaSingle with inline text, fix strong/em marks, fix codeblocks in lists
-        fixed_body = replace_media_with_text(self.body)
-        fixed_body = fix_adf_text_with_marks(fixed_body)
-        fixed_body = fix_codeblock_in_list(fixed_body)
-        markdown = parse_node(fixed_body).to_markdown(ignore_error=True)
-
-        # Post-process mentions: replace plain @Name with [@Name](url)
-        mentions = extract_mention_references(self.body)
-        for mention in mentions:
-            plain_text = mention['text']
-            link_text = format_mention_as_link(mention, base_url)
-            markdown = markdown.replace(plain_text, link_text)
-
-        return markdown
+        return convert_adf_to_markdown(self.body, base_url)
 
 
 @dataclass
@@ -492,25 +476,9 @@ class JiraIssue(JiraBaseIssue):
         return self.additional_fields
 
     def get_description(self, base_url: str | None = None) -> str:
-        if not self.description:
-            return ''
-        if isinstance(self.description, str):
-            return self.description.strip()
+        from jiratui.utils.adf_helpers import convert_adf_to_markdown
 
-        # Pre-process ADF: replace mediaSingle with inline text, fix strong/em marks, fix codeblocks in lists
-        fixed_description = replace_media_with_text(self.description)
-        fixed_description = fix_adf_text_with_marks(fixed_description)
-        fixed_description = fix_codeblock_in_list(fixed_description)
-        markdown = parse_node(fixed_description).to_markdown(ignore_error=True)
-
-        # Post-process mentions: replace plain @Name with [@Name](url)
-        mentions = extract_mention_references(self.description)
-        for mention in mentions:
-            plain_text = mention['text']
-            link_text = format_mention_as_link(mention, base_url)
-            markdown = markdown.replace(plain_text, link_text)
-
-        return markdown
+        return convert_adf_to_markdown(self.description, base_url)
 
     def __repr__(self) -> str:
         return f'id:{self.id} - key:{self.key}'
@@ -763,7 +731,7 @@ class JiraWorklog(BaseModel):
                 return f'Logged {self.time_spent}'
 
     def get_comment(self, base_url: str | None = None) -> str:
-        """Gets the value of the worklog's comment.
+        """Return the comment as markdown.
 
         Jira DC API uses strings instead of ADF. In these cases we simply return the string value. For Jira Cloud API
         the value of the comment is an ADF dictionary and, in these cases we need to convert it to Markdown.
@@ -774,24 +742,9 @@ class JiraWorklog(BaseModel):
         Returns:
             A string representation of the worklog's description.
         """
-        if not self.comment:
-            return ''
-        if isinstance(self.comment, str):
-            return self.comment.strip()
-        # Pre-process ADF: replace mediaSingle with inline text, fix strong/em marks, fix codeblocks in lists
-        fixed_comment = replace_media_with_text(self.comment)
-        fixed_comment = fix_adf_text_with_marks(fixed_comment)
-        fixed_comment = fix_codeblock_in_list(fixed_comment)
-        markdown = parse_node(fixed_comment).to_markdown(ignore_error=True)
+        from jiratui.utils.adf_helpers import convert_adf_to_markdown
 
-        # Post-process mentions: replace plain @Name with [@Name](url)
-        mentions = extract_mention_references(self.comment)
-        for mention in mentions:
-            plain_text = mention['text']
-            link_text = format_mention_as_link(mention, base_url)
-            markdown = markdown.replace(plain_text, link_text)
-
-        return markdown
+        return convert_adf_to_markdown(self.comment, base_url)
 
 
 @dataclass

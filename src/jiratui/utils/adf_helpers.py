@@ -1,3 +1,6 @@
+from atlas_doc_parser.api import parse_node
+
+
 def replace_media_with_text(adf: dict) -> dict:
     """Replace mediaSingle nodes with inline text nodes showing attachment reference.
 
@@ -348,60 +351,30 @@ def fix_codeblock_in_list(adf: dict) -> dict:
 
     return adf
 
-    # Process content array
-    if 'content' in adf and isinstance(adf['content'], list):
-        new_content = []
-        extracted_codeblocks = []
 
-        for node in adf['content']:
-            # Recursively process the node first
-            node = fix_codeblock_in_list(node)
+def convert_adf_to_markdown(value: dict, base_url: str | None = None) -> str:
+    """Convert Atlassian Document Format (ADF) to Markdown.
 
-            # Check if this is a bulletList or orderedList
-            if node.get('type') in ('bulletList', 'orderedList'):
-                list_items = node.get('content', [])
-                new_list_items = []
+    Args:
+        value: The value to convert - can be ADF dict, string, or None
+        base_url: Optional base URL of Jira instance for formatting mentions as links
+                  (e.g., 'https://example.atlassian.net')
 
-                for item in list_items:
-                    if item.get('type') == 'listItem':
-                        item_content = item.get('content', [])
-                        new_item_content = []
+    Returns:
+        Markdown string representation
+    """
 
-                        for child in item_content:
-                            # If we find a codeBlock inside listItem, extract it
-                            if child.get('type') == 'codeBlock':
-                                # Replace with placeholder text in the list item
-                                new_item_content.append(
-                                    {
-                                        'type': 'paragraph',
-                                        'content': [
-                                            {'type': 'text', 'text': '(see code block below)'}
-                                        ],
-                                    }
-                                )
-                                # Save codeBlock to insert after the list
-                                extracted_codeblocks.append(child)
-                            else:
-                                new_item_content.append(child)
+    # Pre-process ADF: replace mediaSingle with inline text, fix strong/em marks, fix codeblocks in lists
+    fixed_value = replace_media_with_text(value)
+    fixed_value = fix_adf_text_with_marks(fixed_value)
+    fixed_value = fix_codeblock_in_list(fixed_value)
+    markdown = parse_node(fixed_value).to_markdown(ignore_error=True)
 
-                        # Update list item with new content
-                        item = item.copy()
-                        item['content'] = new_item_content
-                        new_list_items.append(item)
-                    else:
-                        new_list_items.append(item)
+    # Post-process mentions: replace plain @Name with [@Name](url)
+    mentions = extract_mention_references(value)
+    for mention in mentions:
+        plain_text = mention['text']
+        link_text = format_mention_as_link(mention, base_url)
+        markdown = markdown.replace(plain_text, link_text)
 
-                # Update list node with new items
-                node = node.copy()
-                node['content'] = new_list_items
-
-            new_content.append(node)
-
-            # Add extracted codeBlocks after the current node
-            new_content.extend(extracted_codeblocks)
-            extracted_codeblocks = []
-
-        adf = adf.copy()
-        adf['content'] = new_content
-
-    return adf
+    return markdown

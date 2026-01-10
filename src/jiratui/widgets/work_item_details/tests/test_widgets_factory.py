@@ -169,22 +169,30 @@ def test_create_dynamic_widgets_skip_fields_based_on_configuration(
     assert widgets == []
 
 
-@pytest.mark.parametrize(
-    'schema_custom',
-    [
-        'com.atlassian.jira.plugin.system.customfieldtypes:textarea',
-        'com.atlassian.jira.plugin.some.value',
-    ],
-)
 def test_create_dynamic_widgets_skip_custom_fields_with_unsupported_schemas(
-    schema_custom: str, work_item: JiraIssue
+    work_item: JiraIssue,
 ):
-    # GIVEN
-    work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = schema_custom
+    # GIVEN - truly unsupported schema type
+    work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
+        'com.atlassian.jira.plugin.some.value'
+    )
     # WHEN
     widgets = create_dynamic_widgets_for_updating_work_item(work_item)
     # THEN
     assert widgets == []
+
+
+def test_create_dynamic_widgets_custom_field_textarea(work_item: JiraIssue):
+    # GIVEN - textarea is now supported as read-only
+    work_item.edit_meta['fields']['customfield_10021']['schema']['custom'] = (
+        'com.atlassian.jira.plugin.system.customfieldtypes:textarea'
+    )
+    # WHEN
+    widgets = create_dynamic_widgets_for_updating_work_item(work_item)
+    # THEN
+    assert len(widgets) == 1
+    assert widgets[0].id == 'customfield_10021'
+    assert 'adf-textarea-readonly' in widgets[0].classes
 
 
 def test_create_dynamic_widgets_skip_fields_with_missing_schema(work_item: JiraIssue):

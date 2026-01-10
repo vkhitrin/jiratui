@@ -31,27 +31,22 @@ class TestAtlasDocParserIntegration:
         assert 'test' in result
         assert result.strip() != ''
 
-    def test_issue_comment_get_body_with_string(self):
-        """Test IssueComment.get_body() handles plain string body"""
+    def test_issue_comment_get_body_with_empty_adf(self):
+        """Test IssueComment.get_body() handles empty ADF document"""
+        adf_body = {
+            'type': 'doc',
+            'version': 1,
+            'content': [],
+        }
+
         comment = IssueComment(
             id='123',
             author=JiraUser(account_id='user1', active=True, display_name='Test User'),
-            body='Plain text body',
+            body=adf_body,
         )
 
         result = comment.get_body()
-        assert result == 'Plain text body'
-
-    def test_issue_comment_get_body_with_none(self):
-        """Test IssueComment.get_body() handles None body"""
-        comment = IssueComment(
-            id='123',
-            author=JiraUser(account_id='user1', active=True, display_name='Test User'),
-            body=None,
-        )
-
-        result = comment.get_body()
-        assert result == ''
+        assert result.strip() == ''
 
     def test_jira_issue_get_description_with_adf(self):
         """Test JiraIssue.get_description() converts ADF to markdown"""
@@ -83,31 +78,24 @@ class TestAtlasDocParserIntegration:
         assert 'Description' in result
         assert 'Issue description here' in result
 
-    def test_jira_issue_get_description_with_string(self):
-        """Test JiraIssue.get_description() handles plain string description"""
+    def test_jira_issue_get_description_with_empty_adf(self):
+        """Test JiraIssue.get_description() handles empty ADF document"""
+        adf_description = {
+            'type': 'doc',
+            'version': 1,
+            'content': [],
+        }
+
         issue = JiraIssue(
             id='1',
             key='TEST-1',
             summary='Test issue',
             status=IssueStatus(id='1', name='Open'),
-            description='Plain text description',
+            description=adf_description,
         )
 
         result = issue.get_description()
-        assert result == 'Plain text description'
-
-    def test_jira_issue_get_description_with_none(self):
-        """Test JiraIssue.get_description() handles None description"""
-        issue = JiraIssue(
-            id='1',
-            key='TEST-1',
-            summary='Test issue',
-            status=IssueStatus(id='1', name='Open'),
-            description=None,
-        )
-
-        result = issue.get_description()
-        assert result == ''
+        assert result.strip() == ''
 
     def test_jira_worklog_get_comment_with_adf(self):
         """Test JiraWorklog.get_comment() converts ADF to markdown"""
@@ -124,19 +112,18 @@ class TestAtlasDocParserIntegration:
         result = worklog.get_comment()
         assert 'Worklog comment' in result
 
-    def test_jira_worklog_get_comment_with_string(self):
-        """Test JiraWorklog.get_comment() handles plain string comment (Jira DC)"""
-        worklog = JiraWorklog(id='1', issue_id='TEST-1', comment='Plain text comment')
+    def test_jira_worklog_get_comment_with_empty_adf(self):
+        """Test JiraWorklog.get_comment() handles empty ADF document"""
+        adf_comment = {
+            'type': 'doc',
+            'version': 1,
+            'content': [],
+        }
+
+        worklog = JiraWorklog(id='1', issue_id='TEST-1', comment=adf_comment)
 
         result = worklog.get_comment()
-        assert result == 'Plain text comment'
-
-    def test_jira_worklog_get_comment_with_none(self):
-        """Test JiraWorklog.get_comment() handles None comment"""
-        worklog = JiraWorklog(id='1', issue_id='TEST-1', comment=None)
-
-        result = worklog.get_comment()
-        assert result == ''
+        assert result.strip() == ''
 
 
 class TestMentionIntegration:

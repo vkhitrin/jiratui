@@ -4,7 +4,7 @@ from textual.containers import Center, Container, Vertical, VerticalGroup, Verti
 from textual.reactive import Reactive, reactive
 from textual.widgets import LoadingIndicator
 
-from jiratui.models import CustomFieldTypes, JiraIssue
+from jiratui.models import JiraIssue
 from jiratui.widgets.summary import IssueDescriptionWidget, IssueSummaryWidget
 
 

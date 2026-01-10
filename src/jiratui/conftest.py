@@ -198,7 +198,7 @@ def jira_worklogs() -> list[JiraWorklog]:
             time_spent_seconds=3600,
             author=Mock(spec=JiraUser),
             update_author=Mock(spec=JiraUser),
-            comment='-',
+            comment={'type': 'doc', 'version': 1, 'content': []},
         ),
         JiraWorklog(
             id='2',
@@ -208,7 +208,7 @@ def jira_worklogs() -> list[JiraWorklog]:
             time_spent_seconds=3600,
             author=Mock(spec=JiraUser),
             update_author=Mock(spec=JiraUser),
-            comment='-',
+            comment={'type': 'doc', 'version': 1, 'content': []},
         ),
     ]
 

@@ -442,6 +442,39 @@ class WidgetBuilder:
             field_supports_update=metadata.supports_update if mode == FieldMode.UPDATE else True,
         )
 
+    @staticmethod
+    def build_adf_textarea(
+        mode: FieldMode,
+        metadata: FieldMetadata,
+        # UPDATE mode parameters
+        current_value: dict | str | None = None,
+    ) -> Widget:
+        """
+        Build an ADFTextAreaWidget for read-only Atlassian Document Format (ADF) text areas.
+
+        This widget displays ADF content as rendered Markdown. It is always read-only
+        and cannot be used in CREATE mode.
+
+        Args:
+            mode: Must be UPDATE mode (CREATE not supported for textarea fields)
+            metadata: Parsed field metadata
+            current_value: Current ADF dict, string, or None (UPDATE mode only)
+
+        Returns:
+            ADFTextAreaWidget instance displaying rendered markdown
+        """
+        from jiratui.widgets.common.adf_textarea import ADFTextAreaWidget
+
+        # ADFTextAreaWidget only supports UPDATE mode (read-only display)
+        return ADFTextAreaWidget(
+            mode=mode,
+            field_id=metadata.field_id,
+            title=metadata.name,
+            required=metadata.required,
+            original_value=current_value,
+            field_supports_update=False,  # Always read-only
+        )
+
 
 def map_field_to_widget(
     mode: FieldMode,

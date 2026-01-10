@@ -86,24 +86,11 @@ class ADFTextAreaWidget(Markdown, BaseFieldWidget):
         Returns:
             Markdown string representation
         """
-        if value is None:
-            return '_No content_'
+        try:
+            from jiratui.utils.adf_helpers import convert_adf_to_markdown
 
-        # If it's already a string, return it
-        if isinstance(value, str):
-            return value if value.strip() else '_No content_'
-
-        # If it's a dict (ADF format), convert to markdown
-        if isinstance(value, dict):
-            try:
-                from jiratui.utils.adf2md.adf2md import adf2md
-
-                markdown = adf2md(value)
-                return markdown if markdown.strip() else '_No content_'
-            except Exception as e:
-                # Fallback to string representation if conversion fails
-                logger.warning(f'Failed to convert ADF to markdown: {e}')
-                return str(value)
-
-        # Fallback for any other type
-        return str(value)
+            markdown = convert_adf_to_markdown(value, base_url=None)
+            return markdown if markdown.strip() else '_No content_'
+        except Exception as e:
+            logger.warning(f'Failed to convert ADF to markdown: {e}')
+            return str(value) if value else '_No content_'
