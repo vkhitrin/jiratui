@@ -133,35 +133,41 @@
     }
 }
 
-/* Tab Pane - Subtasks */
+/* Tab Panes - Shared Styles */
+
+/* Shared loading container class for all tab panes */
+.tab-loading-container {
+    align: center middle;
+    height: 100%;
+    width: 100%;
+}
+
+/* Shared content container class for all tab panes */
+.tab-content-container {
+    height: 100%;
+    width: 100%;
+}
+
+/* Individual tab pane widgets */
 
 IssueChildWorkItemsWidget {
-    hatch: right $success 20%;
     scrollbar-size-vertical: 1;
 }
-
-/* Tab Pane - Remote Links */
 
 IssueRemoteLinksWidget {
-    hatch: right $success 20%;
+    hatch: left $success 20%;
     scrollbar-size-vertical: 1;
 }
-
-/* Tab Pane - Attachments */
 
 IssueAttachmentsWidget {
     hatch: right $success 20%;
     scrollbar-size-vertical: 1;
 }
 
-/* Tab Pane - Related Work Items */
-
 RelatedIssuesWidget {
     hatch: right $success 20%;
     scrollbar-size-vertical: 1;
 }
-
-/* Tab Pane - Comments */
 
 IssueCommentsWidget {
     hatch: right $success 20%;
@@ -186,6 +192,17 @@ IssueDescriptionWidget {
 }
 
 /*  Work Item Details */
+
+#issue-details-loading-container {
+    align: center middle;
+    height: 100%;
+    width: 100%;
+}
+
+/* Comments placeholder - kept for backwards compatibility */
+#comments-placeholder {
+    display: none;
+}
 
 #issue-details-form {
     scrollbar-size-vertical: 1;

@@ -21,7 +21,7 @@ from gojeera.widgets.server_info import ServerInfoScreen
 class JiraApp(App):
     """Implements the application."""
 
-    CSS_PATH = 'css/jt.tcss'
+    CSS_PATH = 'css/gojeera.tcss'
     """The path to the file with the TCSS (Textual CSS) definitions."""
 
     TITLE = 'gojeera'

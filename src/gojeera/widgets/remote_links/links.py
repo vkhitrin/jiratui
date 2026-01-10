@@ -1,15 +1,24 @@
 from typing import cast
 
 from rich.text import Text
+from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
+from textual.containers import Center, Container, VerticalGroup, VerticalScroll
 from textual.reactive import Reactive, reactive
-from textual.widgets import Collapsible, Link, Static
+from textual.widgets import Collapsible, Link, LoadingIndicator, Static
 
 from gojeera.api_controller.controller import APIControllerResponse
 from gojeera.models import IssueRemoteLink
 from gojeera.widgets.confirmation_screen import ConfirmationScreen
 from gojeera.widgets.remote_links.add import AddRemoteLinkScreen
+
+
+class LinksContainer(Container):
+    """Container for holding remote link elements."""
+
+    def __init__(self):
+        super().__init__(id='links-container')
+        # Container is always visible - only children are dynamically added/removed
 
 
 class IssueRemoteLinkCollapsible(Collapsible):
@@ -41,7 +50,7 @@ class IssueRemoteLinkCollapsible(Collapsible):
             callback=self.handle_delete_choice,
         )
 
-    def handle_delete_choice(self, result: bool) -> None:
+    def handle_delete_choice(self, result: bool | None) -> None:
         """Schedules the operation to delete a link when a user accepts deleting a link.
 
         Args:
@@ -98,6 +107,37 @@ class IssueRemoteLinksWidget(VerticalScroll):
     @property
     def help_anchor(self) -> str:
         return '#web-links'
+
+    @property
+    def loading_container(self) -> Center:
+        return self.query_one('.tab-loading-container', Center)
+
+    @property
+    def content_container(self) -> VerticalGroup:
+        return self.query_one('.tab-content-container', VerticalGroup)
+
+    @property
+    def links_container_widget(self) -> LinksContainer:
+        return self.query_one(LinksContainer)
+
+    def compose(self) -> ComposeResult:
+        with Center(classes='tab-loading-container') as loading_container:
+            loading_container.display = False
+            yield LoadingIndicator()
+        with VerticalGroup(classes='tab-content-container') as content:
+            content.display = True  # Ensure content container starts visible
+            with LinksContainer():
+                pass
+
+    def show_loading(self) -> None:
+        """Show the loading indicator and hide content."""
+        self.loading_container.display = True
+        self.content_container.display = False
+
+    def hide_loading(self) -> None:
+        """Hide the loading indicator and show content."""
+        self.loading_container.display = False
+        self.content_container.display = True
 
     async def action_add_remote_link(self) -> None:
         """Handles the event to open a pop-up screen to add a remote (web) link to a work item.
@@ -160,6 +200,9 @@ class IssueRemoteLinksWidget(VerticalScroll):
         Returns:
             Nothing.
         """
+        # Get the links container where links will be mounted
+        links_container = self.links_container_widget
+
         links: list[IssueRemoteLink] = []
         screen = cast('MainScreen', self.screen)  # type:ignore[name-defined] # noqa: F821
         response: APIControllerResponse = await screen.api.get_issue_remote_links(issue_key)
@@ -169,12 +212,20 @@ class IssueRemoteLinksWidget(VerticalScroll):
                 title='Work Items Remote Links',
                 severity='warning',
             )
-        else:
-            links = response.result or []
+            # Clear the container on error
+            links_container.remove_children()
+            self.hide_loading()
+            return
+
+        links = response.result or []
 
         rows: list[IssueRemoteLinkCollapsible] = []
 
         for item in links:
+            # Skip items without a URL
+            if not item.url:
+                continue
+
             if item.status_resolved is True:
                 status_resolved = Text('Resolved: Yes', style='green')
             elif item.status_resolved is False:
@@ -194,8 +245,12 @@ class IssueRemoteLinksWidget(VerticalScroll):
                 )
             )
 
-        await self.remove_children()
-        await self.mount_all(rows)
+        # Clear and mount into the container
+        links_container.remove_children()
+        if rows:
+            links_container.mount_all(rows)
+
+        self.hide_loading()
 
     def watch_issue_key(self, issue_key: str | None = None) -> None:
         """Updates the remote links of the work item being displayed every time a new work item is set for the widget.
@@ -206,5 +261,18 @@ class IssueRemoteLinksWidget(VerticalScroll):
         Returns:
             Nothing.
         """
-        if issue_key:
-            self.run_worker(self.fetch_remote_links(issue_key))
+        # Get the links container
+        links_container = self.links_container_widget
+
+        # Always clear existing children first
+        links_container.remove_children()
+
+        # If no issue key, make sure content is visible (not loading) and leave container empty
+        if not issue_key:
+            self.loading_container.display = False
+            self.content_container.display = True
+            return
+
+        # Show loading and fetch links
+        self.show_loading()
+        self.run_worker(self.fetch_remote_links(issue_key))

@@ -3,9 +3,9 @@ from typing import cast
 from rich.text import Text
 from textual import on
 from textual.binding import Binding
-from textual.containers import Container
+from textual.containers import Center, Container, VerticalGroup
 from textual.reactive import Reactive, reactive
-from textual.widgets import DataTable, Input
+from textual.widgets import DataTable, Input, LoadingIndicator
 
 from gojeera.config import CONFIGURATION
 from gojeera.models import JiraIssue, JiraIssueSearchResponse
@@ -36,11 +36,12 @@ class DataTableSearchInput(Input):
         super().__init__(id='searchable-datatable-input-field')
         self.placeholder = placeholder or 'Type to filter items in the current page...'
         self.border_title = border_title or 'Filter'
-        self.styles.display = 'none' if hide else 'block'
+        if hide:
+            self.display = False
 
     def action_hide(self) -> None:
         # hide the input widget
-        self.styles.display = 'none'
+        self.display = False
         screen = cast('MainScreen', self.screen)  # type:ignore[name-defined] # noqa: F821
         # reset the results to the initial result set
         screen.search_results_table.search_results = (
@@ -190,7 +191,10 @@ class IssuesSearchResultsTable(DataTable):
                 style_status = get_style_for_work_item_status(issue.status.name.lower())
 
             style_work_type = ''
-            if CONFIGURATION.get().search_results_style_work_item_type:
+            if (
+                CONFIGURATION.get().search_results_style_work_item_type
+                and issue.issue_type is not None
+            ):
                 style_work_type = get_style_for_work_item_type(issue.issue_type.name.lower())
 
             self.add_row(
@@ -208,22 +212,25 @@ class IssuesSearchResultsTable(DataTable):
     def on_data_table_row_selected(self, event: DataTable.RowSelected) -> None:
         """Fetches the details of the currently-selected item."""
         screen = cast('MainScreen', self.screen)  # type:ignore[name-defined] # noqa: F821
-        _, work_item_key = event.row_key.value.split('#')
-        self.current_work_item_key = work_item_key
-        # use exclusive=True to make sure that if the user selects another work item before the worker finishes
-        # retrieving the data of the previously selected the correct data is fetched
-        # the exclusive flag tells Textual to cancel all previous workers before starting the new one.
-        self.run_worker(screen.fetch_issue(work_item_key), exclusive=True)
+        if event.row_key.value:
+            _, work_item_key = str(event.row_key.value).split('#')
+            self.current_work_item_key = work_item_key
+            # use exclusive=True to make sure that if the user selects another work item before the worker finishes
+            # retrieving the data of the previously selected the correct data is fetched
+            # the exclusive flag tells Textual to cancel all previous workers before starting the new one.
+            self.run_worker(screen.fetch_issue(work_item_key), exclusive=True)
 
     def on_data_table_row_highlighted(self, event: DataTable.RowHighlighted) -> None:
         """Stores the key of the currently-selected item."""
-        _, self.current_work_item_key = event.row_key.value.split('#')
+        if event.row_key.value:
+            _, self.current_work_item_key = str(event.row_key.value).split('#')
 
     def action_open_issue_in_browser(self) -> None:
         """Opens the currently-selected item in the default browser."""
         if self.current_work_item_key:
-            self.notify('Opening Work Item in the browser...')
-            self.app.open_url(build_external_url_for_issue(self.current_work_item_key))
+            if url := build_external_url_for_issue(self.current_work_item_key):
+                self.notify('Opening Work Item in the browser...')
+                self.app.open_url(url)
 
     def action_filter(self) -> None:
         if not CONFIGURATION.get().search_results_page_filtering_enabled:
@@ -290,9 +297,37 @@ class SearchResultsContainer(Container):
         self.border_title = 'Work Items'
         self.config = CONFIGURATION.get()
 
+    @property
+    def loading_container(self) -> Center:
+        return self.query_one('.tab-loading-container', Center)
+
+    @property
+    def content_container(self) -> VerticalGroup:
+        return self.query_one('.tab-content-container', VerticalGroup)
+
+    def compose(self):
+        """Compose the search results container with loading indicator."""
+        with Center(classes='tab-loading-container') as loading_container:
+            loading_container.display = False
+            yield LoadingIndicator()
+        with VerticalGroup(classes='tab-content-container') as content:
+            content.display = True
+            yield DataTableSearchInput()
+            yield IssuesSearchResultsTable()
+
+    def show_loading(self) -> None:
+        """Show loading indicator and hide content."""
+        self.loading_container.display = True
+        self.content_container.display = False
+
+    def hide_loading(self) -> None:
+        """Hide loading indicator and show content."""
+        self.loading_container.display = False
+        self.content_container.display = True
+
     def watch_pagination(self, response: dict) -> None:
         if response:
-            current_page_number = max(1, response.get('current_page_number'))
+            current_page_number = max(1, response.get('current_page_number') or 1)
             if (total_results := response.get('total', 0)) is not None:
                 total_pages = total_results // self.config.search_results_per_page
                 if (total_results % self.config.search_results_per_page) > 0:

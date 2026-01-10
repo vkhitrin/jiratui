@@ -5,7 +5,7 @@ from typing import cast
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import Center, VerticalScroll
+from textual.containers import Center, Container, VerticalGroup, VerticalScroll
 from textual.reactive import Reactive, reactive
 from textual.screen import ModalScreen
 from textual.widget import Widget
@@ -22,6 +22,13 @@ from gojeera.utils.mime import (
 from gojeera.utils.urls import build_external_url_for_attachment
 from gojeera.widgets.attachments.add import AddAttachmentScreen
 from gojeera.widgets.confirmation_screen import ConfirmationScreen
+
+
+class AttachmentsContainer(Container):
+    """Container for holding attachment table elements."""
+
+    def __init__(self):
+        super().__init__(id='attachments-container')
 
 
 class IssueAttachmentsWidget(VerticalScroll):
@@ -57,10 +64,41 @@ class IssueAttachmentsWidget(VerticalScroll):
     def issue_key(self, value: str | None) -> None:
         self._issue_key = value
 
-    def action_add_attachment(self) -> None:
+    @property
+    def loading_container(self) -> Center:
+        return self.query_one('.tab-loading-container', Center)
+
+    @property
+    def content_container(self) -> VerticalGroup:
+        return self.query_one('.tab-content-container', VerticalGroup)
+
+    @property
+    def attachments_container_widget(self) -> AttachmentsContainer:
+        return self.query_one(AttachmentsContainer)
+
+    def compose(self) -> ComposeResult:
+        with Center(classes='tab-loading-container') as loading_container:
+            loading_container.display = False
+            yield LoadingIndicator()
+        with VerticalGroup(classes='tab-content-container') as content:
+            content.display = True  # Ensure content container starts visible
+            with AttachmentsContainer():
+                pass
+
+    def show_loading(self) -> None:
+        """Show loading indicator and hide content."""
+        self.loading_container.display = True
+        self.content_container.display = False
+
+    def hide_loading(self) -> None:
+        """Hide loading indicator and show content."""
+        self.loading_container.display = False
+        self.content_container.display = True
+
+    async def action_add_attachment(self) -> None:
         """Opens a screen to attach a file to the issue."""
         if self.issue_key:
-            self.app.push_screen(AddAttachmentScreen(self.issue_key), self.upload_attachment)
+            await self.app.push_screen(AddAttachmentScreen(self.issue_key), self.upload_attachment)
         else:
             self.notify(
                 'You need to select a work item before attempting to attach a file.',
@@ -68,7 +106,7 @@ class IssueAttachmentsWidget(VerticalScroll):
                 severity='error',
             )
 
-    def upload_attachment(self, content: str) -> None:
+    def upload_attachment(self, content: str | None) -> None:
         """Uploads a file s an attachment to the work item.
 
         Args:
@@ -93,31 +131,39 @@ class IssueAttachmentsWidget(VerticalScroll):
                     title=self.NOTIFICATIONS_DEFAULT_TITLE,
                 )
                 # update the list of attachments being displayed in the table
-                current_attachments = self.attachments
-                self.attachments = current_attachments + [response.result]
+                current_attachments = self.attachments or []
+                new_attachment = cast(Attachment, response.result)
+                self.attachments = current_attachments + [new_attachment]
 
     def watch_attachments(self, attachments: list[Attachment] | None) -> None:
         """Updates the table with attached files with new attachments."""
-        self.remove_children()
+        container = self.attachments_container_widget
+
         if not attachments:
+            self.loading_container.display = False
+            self.content_container.display = True
+            container.remove_children()
             return
 
-        table = AttachmentsDataTable(self.issue_key)
-        table.add_columns(*['File Name', 'Size (KB)', 'Added', 'Author', 'Type'])
+        container.remove_children()
 
-        item: Attachment
-        for item in attachments:
-            table.add_row(
-                *[
-                    item.filename,
-                    item.get_size() or '-',
-                    item.created_date,
-                    item.display_author,
-                    item.get_mime_type(),
-                ],
-                key=item.id,
-            )
-        self.mount(table)
+        if self.issue_key:
+            table = AttachmentsDataTable(self.issue_key)
+            table.add_columns(*['File Name', 'Size (KB)', 'Added', 'Author', 'Type'])
+
+            item: Attachment
+            for item in attachments:
+                table.add_row(
+                    *[
+                        item.filename,
+                        item.get_size() or '-',
+                        item.created_date,
+                        item.display_author,
+                        item.get_mime_type(),
+                    ],
+                    key=item.id,
+                )
+            container.mount(table)
 
 
 class AttachmentsDataTable(DataTable):
@@ -161,9 +207,10 @@ class AttachmentsDataTable(DataTable):
         Returns:
             None
         """
-        self._selected_attachment_id = str(event.row_key.value)
-        if (row := event.data_table.get_row(event.row_key.value)) and len(row) > 0:
-            self._selected_attachment_file_name = row[0]
+        if event.row_key.value is not None:
+            self._selected_attachment_id = str(event.row_key.value)
+            if (row := event.data_table.get_row(event.row_key.value)) and len(row) > 0:
+                self._selected_attachment_file_name = row[0]
 
     @on(DataTable.RowSelected)
     def selected(self, event: DataTable.RowSelected) -> None:
@@ -188,7 +235,7 @@ class AttachmentsDataTable(DataTable):
                         self.notify(
                             f'The type of file {selected_attachment_file_type} is not supported'
                         )
-                    else:
+                    elif self._selected_attachment_file_name:
                         self.app.push_screen(
                             ViewAttachmentScreen(
                                 self._selected_attachment_id,
@@ -228,7 +275,7 @@ class AttachmentsDataTable(DataTable):
             updated_attachments.append(attachment)
         self.parent.attachments = updated_attachments  # type:ignore[attr-defined]
 
-    async def handle_delete_choice(self, result: bool) -> None:
+    async def handle_delete_choice(self, result: bool | None) -> None:
         """Attempts to delete an attachment if the user agrees.
 
         Args:

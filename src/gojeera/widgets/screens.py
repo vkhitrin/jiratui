@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from datetime import date
 import logging
 
-from dateutil.parser import isoparse  # type:ignore[import-untyped]
+from dateutil.parser import isoparse
 from textual import on
 from textual.app import ComposeResult
 from textual.binding import Binding
@@ -398,9 +398,7 @@ class MainScreen(Screen):
                     compact=True,
                 )
             with Horizontal():
-                with SearchResultsContainer(id='search_results_container'):
-                    yield DataTableSearchInput()
-                    yield IssuesSearchResultsTable()
+                yield SearchResultsContainer(id='search_results_container')
                 with TabbedContent(id='tabs'):
                     with TabPane(title='Info', classes='summary-description-container'):
                         yield WorkItemInfoContainer()
@@ -764,7 +762,7 @@ class MainScreen(Screen):
                 issue_type=search_field_issue_type,
                 jql_query=jql_query,
             )
-            if counting.success:
+            if counting.success and counting.result is not None:
                 estimated_total_issues = counting.result
             else:
                 estimated_total_issues = 0
@@ -840,7 +838,7 @@ class MainScreen(Screen):
         Returns:
             Nothing.
         """
-        self.run_button.loading = True
+        self.search_results_container.show_loading()
         results: WorkItemSearchResult
         if (value := self.issue_key_input.value) and isinstance(value, str) and value.strip():
             # search single issue
@@ -862,7 +860,7 @@ class MainScreen(Screen):
             'total': results.total,
             'current_page_number': self.search_results_table.page,
         }
-        self.run_button.loading = False
+        self.search_results_container.hide_loading()
 
     @on(Button.Pressed, '#run-button')
     async def handle_run_button(self) -> None:
@@ -873,8 +871,10 @@ class MainScreen(Screen):
 
         # clear the information pane
         self.issue_info_container.clear_information = True
-        # clear the details pane
-        self.issue_details_widget.clear_form = True
+        # clear the details pane - set issue to None to trigger proper hiding
+        self.issue_details_widget.issue = None
+        # clear the currently loaded work item tracking
+        self.current_loaded_work_item_key = None
         # clear the comments
         self.issue_comments_widget.comments = None
         self.issue_comments_widget.issue_key = None
@@ -929,7 +929,7 @@ class MainScreen(Screen):
     def action_copy_issue_key(self) -> None:
         """Copy to the clipboard the key of the item currently selected in the search results."""
         if (table := self.search_results_table) and table.current_work_item_key:
-            self.app.copy_to_clipboard(self.search_results_table.current_work_item_key)
+            self.app.copy_to_clipboard(table.current_work_item_key)
             self.notify('Work item Key copied!')
 
     def action_create_git_branch(self) -> None:
@@ -950,7 +950,7 @@ class MainScreen(Screen):
             callback=self.create_work_item,
         )
 
-    async def create_work_item(self, data: dict) -> None:
+    async def create_work_item(self, data: dict | None) -> None:
         """Handles the event to create a work item after the user clicks on the "save" button in the create-work-item
         screen.
 
@@ -1008,6 +1008,7 @@ class MainScreen(Screen):
 
     async def retrieve_issue_subtasks(self, issue_key: str) -> None:
         if issue_key:
+            self.issue_child_work_items_widget.show_loading()
             self.issue_child_work_items_widget.issue_key = issue_key
             response: APIControllerResponse = await self.api.search_issues(
                 jql_query=f'parent={issue_key}',
@@ -1023,9 +1024,14 @@ class MainScreen(Screen):
                     severity='warning',
                     title='Work Item Search',
                 )
+                self.issue_child_work_items_widget.issues = None
             else:
                 if response.result:
                     self.issue_child_work_items_widget.issues = response.result.issues
+                else:
+                    self.issue_child_work_items_widget.issues = None
+
+            self.issue_child_work_items_widget.hide_loading()
 
     async def fetch_issue(self, selected_work_item_key: str) -> None:
         """Retrieves the details of a work item selected by the user in the search results.
@@ -1062,8 +1068,13 @@ class MainScreen(Screen):
         if self.current_loaded_work_item_key == selected_work_item_key:
             return
 
-        # Show loading indicator
+        # Show loading indicators
         self.issue_info_container.show_loading()
+        self.issue_comments_widget.show_loading()
+        self.related_issues_widget.show_loading()
+        self.issue_attachments_widget.show_loading()
+        if CONFIGURATION.get().show_issue_web_links:
+            self.issue_remote_links_widget.show_loading()
 
         # step 1: fetch issue
         response: APIControllerResponse = await self.api.get_issue(
@@ -1071,6 +1082,11 @@ class MainScreen(Screen):
         )
         if not response.success or not response.result:
             self.issue_info_container.hide_loading()
+            self.issue_comments_widget.hide_loading()
+            self.related_issues_widget.hide_loading()
+            self.issue_attachments_widget.hide_loading()
+            if CONFIGURATION.get().show_issue_web_links:
+                self.issue_remote_links_widget.hide_loading()
             self.notify(
                 'Unable to find the selected work item', title='Find Work Item', severity='error'
             )
@@ -1095,14 +1111,17 @@ class MainScreen(Screen):
         # step 4: populate the related-issues tab
         self.related_issues_widget.issue_key = work_item.key
         self.related_issues_widget.issues = work_item.related_issues
+        self.related_issues_widget.hide_loading()
 
         # step 5: populate comments tab
         self.issue_comments_widget.issue_key = work_item.key
         self.issue_comments_widget.comments = work_item.comments
+        self.issue_comments_widget.hide_loading()
 
         # step 6: populate attachments tab
         self.issue_attachments_widget.issue_key = work_item.key
         self.issue_attachments_widget.attachments = work_item.attachments
+        self.issue_attachments_widget.hide_loading()
 
         # fetch the issue's web links
         if CONFIGURATION.get().show_issue_web_links:
@@ -1111,7 +1130,7 @@ class MainScreen(Screen):
         # fetch sub-tasks
         self.run_worker(self.retrieve_issue_subtasks(work_item.key))
 
-    async def request_text_search(self, value: str):
+    def request_text_search(self, value: str | None) -> None:
         value = value or ''
         if (value := value.strip()) and len(value) >= max(
             FULL_TEXT_SEARCH_DEFAULT_MINIMUM_TERM_LENGTH,

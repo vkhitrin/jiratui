@@ -1,11 +1,12 @@
 from typing import cast
 
 from rich.text import Text
+from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import VerticalScroll
+from textual.containers import Center, Container, VerticalGroup, VerticalScroll
 from textual.reactive import Reactive, reactive
 from textual.widget import Widget
-from textual.widgets import Collapsible, Link, Static
+from textual.widgets import Collapsible, Link, LoadingIndicator, Static
 
 from gojeera.api_controller.controller import APIControllerResponse
 from gojeera.models import JiraIssue, RelatedJiraIssue
@@ -14,6 +15,14 @@ from gojeera.widgets.confirmation_screen import ConfirmationScreen
 from gojeera.widgets.constants import RELATED_WORK_ITEMS_PRIORITY_BASED_STYLING
 from gojeera.widgets.related_work_items.add import AddWorkItemRelationshipScreen
 from gojeera.widgets.work_item_details.read_only_details import WorkItemReadOnlyDetailsScreen
+
+
+class RelatedIssuesContainer(Container):
+    """The container that holds the related issues."""
+
+    def __init__(self):
+        super().__init__(id='related-issues-container')
+        # Container is always visible - only children are dynamically added/removed
 
 
 class RelatedIssueCollapsible(Collapsible):
@@ -55,7 +64,7 @@ class RelatedIssueCollapsible(Collapsible):
             callback=self.handle_delete_choice,
         )
 
-    def handle_delete_choice(self, result: bool) -> None:
+    def handle_delete_choice(self, result: bool | None) -> None:
         if result is True:
             self.run_worker(self.delete_link())
 
@@ -117,6 +126,37 @@ class RelatedIssuesWidget(VerticalScroll):
     def issue_key(self, value: str | None) -> None:
         self._issue_key = value
 
+    @property
+    def loading_container(self) -> Center:
+        return self.query_one('.tab-loading-container', expect_type=Center)
+
+    @property
+    def content_container(self) -> VerticalGroup:
+        return self.query_one('.tab-content-container', expect_type=VerticalGroup)
+
+    @property
+    def related_issues_container_widget(self) -> RelatedIssuesContainer:
+        return self.query_one(RelatedIssuesContainer)
+
+    def compose(self) -> ComposeResult:
+        with Center(classes='tab-loading-container') as loading_container:
+            loading_container.display = False
+            yield LoadingIndicator()
+        with VerticalGroup(classes='tab-content-container') as content:
+            content.display = True  # Ensure content container starts visible
+            with RelatedIssuesContainer():
+                pass
+
+    def show_loading(self) -> None:
+        """Show the loading indicator and hide content."""
+        self.loading_container.display = True
+        self.content_container.display = False
+
+    def hide_loading(self) -> None:
+        """Hide the loading indicator and show content."""
+        self.loading_container.display = False
+        self.content_container.display = True
+
     def add_relationship(self, data: dict | None = None) -> None:
         if data:
             self.run_worker(self.link_work_items(data))
@@ -165,10 +205,16 @@ class RelatedIssuesWidget(VerticalScroll):
         Returns:
             None
         """
+        # Get the related issues container where issues will be mounted
+        related_issues_container = self.related_issues_container_widget
 
-        self.remove_children()
+        # Always clear existing children first
+        related_issues_container.remove_children()
 
+        # If no items, make sure content is visible (not loading) and leave container empty
         if not items:
+            self.loading_container.display = False
+            self.content_container.display = True
             return
 
         rows: list[RelatedIssueCollapsible] = []
@@ -197,4 +243,6 @@ class RelatedIssuesWidget(VerticalScroll):
             if styles and (collapsible_class := styles.get('collapsible_class')):
                 collapsible.add_class(collapsible_class)
             rows.append(collapsible)
-        self.mount_all(rows)
+
+        # Mount the related issues inside the RelatedIssuesContainer
+        related_issues_container.mount_all(rows)

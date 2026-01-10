@@ -1,10 +1,11 @@
 from typing import cast
 
 from rich.text import Text
+from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import HorizontalGroup, VerticalScroll
+from textual.containers import Center, Container, HorizontalGroup, VerticalGroup, VerticalScroll
 from textual.reactive import Reactive, reactive
-from textual.widgets import Collapsible, Link, Markdown, Rule, Static
+from textual.widgets import Collapsible, Link, LoadingIndicator, Markdown, Rule, Static
 
 from gojeera.api_controller.controller import APIControllerResponse
 from gojeera.config import CONFIGURATION
@@ -12,6 +13,14 @@ from gojeera.models import IssueComment
 from gojeera.utils.urls import build_external_url_for_comment
 from gojeera.widgets.comments.add import AddCommentScreen
 from gojeera.widgets.confirmation_screen import ConfirmationScreen
+
+
+class CommentsContainer(Container):
+    """The container that holds the comments."""
+
+    def __init__(self):
+        super().__init__(id='comments-container')
+        # Container is always visible - only children are dynamically added/removed
 
 
 class CommentCollapsible(Collapsible):
@@ -27,8 +36,8 @@ class CommentCollapsible(Collapsible):
     ]
 
     def __init__(self, *args, **kwargs):
-        self._work_item_key: str | None = kwargs.pop('work_item_key', None)  # type:ignore[annotation-unchecked]
-        self._comment_id: str | None = kwargs.pop('comment_id', None)  # type:ignore[annotation-unchecked]
+        self._work_item_key: str | None = kwargs.pop('work_item_key', None)
+        self._comment_id: str | None = kwargs.pop('comment_id', None)
         super().__init__(*args, **kwargs)
 
     async def action_delete_comment(self) -> None:
@@ -37,9 +46,10 @@ class CommentCollapsible(Collapsible):
             callback=self.handle_delete_choice,
         )
 
-    def handle_delete_choice(self, result: bool) -> None:
+    def handle_delete_choice(self, result: bool | None) -> None:
         if result is True:
-            self.run_worker(self.delete_comment(self._work_item_key, self._comment_id))
+            if self._work_item_key and self._comment_id:
+                self.run_worker(self.delete_comment(self._work_item_key, self._comment_id))
 
     def _update_comments_after_delete(self) -> None:
         updated_comments: list[IssueComment] = []
@@ -89,7 +99,7 @@ class IssueCommentsWidget(VerticalScroll):
     """A container for displaying the comments of a work item."""
 
     HELP = 'See Comments section in the help'
-    comments: Reactive[list[IssueComment] | None] = reactive(None)
+    comments: Reactive[list[IssueComment] | None] = reactive(None, always_update=True)
 
     BINDINGS = [
         Binding(
@@ -116,7 +126,38 @@ class IssueCommentsWidget(VerticalScroll):
     def issue_key(self, value: str | None):
         self._issue_key = value
 
-    def save_comment(self, content: str) -> None:
+    @property
+    def loading_container(self) -> Center:
+        return self.query_one('.tab-loading-container', expect_type=Center)
+
+    @property
+    def content_container(self) -> VerticalGroup:
+        return self.query_one('.tab-content-container', expect_type=VerticalGroup)
+
+    @property
+    def comments_container_widget(self) -> CommentsContainer:
+        return self.query_one(CommentsContainer)
+
+    def compose(self) -> ComposeResult:
+        with Center(classes='tab-loading-container') as loading_container:
+            loading_container.display = False
+            yield LoadingIndicator()
+        with VerticalGroup(classes='tab-content-container') as content:
+            content.display = True  # Ensure content container starts visible
+            with CommentsContainer():
+                pass
+
+    def show_loading(self) -> None:
+        """Show the loading indicator and hide content."""
+        self.loading_container.display = True
+        self.content_container.display = False
+
+    def hide_loading(self) -> None:
+        """Hide the loading indicator and show content."""
+        self.loading_container.display = False
+        self.content_container.display = True
+
+    def save_comment(self, content: str | None) -> None:
         if content and content.strip():
             self.run_worker(self.add_comment_to_issue(content))
 
@@ -153,13 +194,23 @@ class IssueCommentsWidget(VerticalScroll):
                 if response.success:
                     self.comments = response.result or []
 
-    def watch_comments(self, items: list[IssueComment]) -> None:
-        self.remove_children()
+    def watch_comments(self, items: list[IssueComment] | None) -> None:
+        """Watch for changes to comments and update the display."""
+        # Get the comments container where comments will be mounted
+        comments_container = self.comments_container_widget
+
+        # Always clear existing children first
+        comments_container.remove_children()
+
+        # If no items, make sure content is visible (not loading) and leave container empty
         if not items:
+            self.loading_container.display = False
+            self.content_container.display = True
             return
+
         comment: IssueComment
         elements: list[CommentCollapsible] = []
-        items.sort(key=lambda x: x.updated, reverse=True)
+        items.sort(key=lambda x: x.updated or 0, reverse=True)
         comment_text: Markdown | Static
         for comment in items:
             base_url = getattr(getattr(self.app, 'config', None), 'jira_base_url', None)
@@ -191,4 +242,6 @@ class IssueCommentsWidget(VerticalScroll):
                     comment_id=comment.id,
                 )
             )
-        self.mount_all(elements)
+
+        # Mount the comments inside the CommentsContainer
+        comments_container.mount_all(elements)

@@ -5,9 +5,9 @@ from typing import Any, cast
 from dateutil import parser  # type:ignore[import-untyped]
 from textual.app import ComposeResult
 from textual.binding import Binding
-from textual.containers import HorizontalGroup, ItemGrid, Right, Vertical, VerticalScroll
+from textual.containers import Center, HorizontalGroup, ItemGrid, Right, Vertical, VerticalScroll
 from textual.reactive import Reactive, reactive
-from textual.widgets import ProgressBar, Select
+from textual.widgets import LoadingIndicator, ProgressBar, Select
 from textual.widgets._select import SelectOverlay
 
 from gojeera.api_controller.controller import APIControllerResponse
@@ -142,12 +142,20 @@ class IssueDetailsWidget(Vertical):
         metadata or the configuration of the field used for storing the value of the flag."""
 
     @property
-    def issue_is_flagged(self) -> bool:
+    def issue_is_flagged(self) -> bool | None:
         return self._work_item_is_flagged
 
     @property
     def help_anchor(self) -> str:
         return '#updating-work-items'
+
+    @property
+    def loading_container(self) -> Center:
+        return self.query_one('#issue-details-loading-container', expect_type=Center)
+
+    @property
+    def content_container(self) -> VerticalScroll:
+        return self.query_one('#issue-details-form', expect_type=VerticalScroll)
 
     @property
     def issue_type_field(self) -> IssueTypeField:
@@ -236,67 +244,49 @@ class IssueDetailsWidget(Vertical):
     def compose(self) -> ComposeResult:
         with Right():
             yield WorkItemFlagField()  # row 0
+        with Center(id='issue-details-loading-container') as loading_container:
+            loading_container.display = False
+            yield LoadingIndicator()
         with VerticalScroll(id='issue-details-form'):
             with StaticFieldsWidgets():
-                yield IssueSummaryField()  # row 1
-                yield IssueDetailsAssigneeSelection([])  # row 2
-                yield IssueDetailsPrioritySelection([])  # row 2
-                yield IssueDetailsStatusSelection([])  # row 2
-                yield IssueKeyField()  # row 3
-                yield IssueParentField()  # row 3
-                yield IssueSprintField()  # row 3
-                yield ProjectIDField()  # row 4
-                yield IssueTypeField()  # row 5
-                yield ReporterField()  # row 5
-                # row 6
-                yield ReadOnlyTextField(
-                    id='issue_created_date',
-                    label='Created',
-                    disabled=True,
-                    valid_empty=True,
-                    extra_classes='input-date',
-                )
-                yield ReadOnlyTextField(
-                    id='issue_last_update_date',
-                    label='Last Update',
-                    disabled=True,
-                    valid_empty=True,
-                    extra_classes='input-date',
-                )
+                yield IssueSummaryField()
+                yield IssueDetailsAssigneeSelection([])
+                yield IssueDetailsPrioritySelection([])
+                yield IssueDetailsStatusSelection([])
+                yield IssueParentField()
                 yield WorkItemDetailsDueDate()
-                # row 7
-                yield ReadOnlyTextField(
-                    id='issue_resolution_date',
-                    label='Resolved',
-                    disabled=True,
-                    valid_empty=True,
-                    extra_classes='input-date',
-                )
-                yield ReadOnlyTextField(
-                    id='issue_resolution',
-                    label='Resolution',
-                    disabled=True,
-                    valid_empty=True,
-                    extra_classes='cols-2',
-                )
-                # row 8
                 yield WorkItemLabelsField()
-                # row 9
-                yield HorizontalGroup(id='time-tracking-container', classes='cols-3')
+                yield IssueSprintField()
+                yield ProjectIDField()
+                yield IssueKeyField()
+                yield IssueTypeField()
+                yield ReporterField()
+                yield ReadOnlyTextField(
+                    value='', name='issue_created_date', id='issue_created_date'
+                )
+                yield ReadOnlyTextField(
+                    value='', name='issue_last_update_date', id='issue_last_update_date'
+                )
+                yield ReadOnlyTextField(value='', name='issue_resolution', id='issue_resolution')
+                yield ReadOnlyTextField(
+                    value='', name='issue_resolution_date', id='issue_resolution_date'
+                )
+                with HorizontalGroup(id='time-tracking-container'):
+                    pass  # TimeTrackingWidget mounted dynamically per work item
             yield DynamicFieldsWidgets()
 
     def on_mount(self) -> None:
-        """Initialize the labels autocomplete widget after mounting."""
-        # Get the labels field and create an autocomplete widget for it
-        labels_field = self.work_item_labels_widget
-        application = cast('JiraApp', self.app)  # type:ignore[name-defined] # noqa: F821
+        """Initialize the widget state."""
+        # Hide containers initially until a work item is loaded
+        self.loading_container.display = False
+        self.content_container.display = False
 
-        # Create and mount the autocomplete widget
+        # Mount the labels autocomplete widget
+        labels_field = self.work_item_labels_widget
+        application = cast('JiraApp', self.app)  # type: ignore[name-defined] # noqa: F821
         autocomplete = LabelsAutoComplete(
             target=labels_field,
             api_controller=application.api,
-            required=False,
-            title='Labels',
         )
         self.mount(autocomplete)
 
@@ -325,8 +315,10 @@ class IssueDetailsWidget(Vertical):
         """Opens a modal screen to let the user add/remove a flag with an optional comment/note."""
 
         if self.issue and self.issue.key and self._issue_supports_flagging:
+            # Ensure we have a valid boolean value for issue_is_flagged
+            is_flagged = self.issue_is_flagged if self.issue_is_flagged is not None else False
             self.app.push_screen(
-                FlagWorkItemScreen(self.issue.key, self.issue_is_flagged),
+                FlagWorkItemScreen(self.issue.key, is_flagged),
                 self._request_flagging_work_item,
             )
         else:
@@ -337,7 +329,7 @@ class IssueDetailsWidget(Vertical):
     def _request_flagging_work_item(self, value: dict | None = None) -> None:
         """If we need to update the flag run a worker to do so."""
 
-        if value and value.get('update_flag'):
+        if value and value.get('update_flag') and self.issue and self.issue.key:
             self.run_worker(self._toggle_work_item_flag(key=self.issue.key, note=value.get('note')))
 
     async def _toggle_work_item_flag(self, key: str, note: str | None = None) -> None:
@@ -390,7 +382,7 @@ class IssueDetailsWidget(Vertical):
         # when the screen that shows work logs for a work item is dismissed, check the result and if
         # required fetch the details of the work item to refresh the details form and reflect the changes in time
         # tracking information
-        if response.get('work_logs_deleted'):
+        if response and response.get('work_logs_deleted'):
             self.run_worker(self._refresh_work_item_details)
 
     async def _refresh_work_item_details(self) -> None:
@@ -399,12 +391,23 @@ class IssueDetailsWidget(Vertical):
         This is useful for operations that update the details, e.g. saving the work item's details or, deleting a
         worklog."""
 
+        if not self.issue or not self.issue.key:
+            return
+
+        # Store the issue key before refresh
+        issue_key = self.issue.key
+
+        # Clear the current issue to trigger loading state
+        self.issue = None
+
+        # Fetch the updated issue
         application = cast('JiraApp', self.app)  # type:ignore[name-defined] # noqa: F821
-        issue_details_response = await application.api.get_issue(issue_id_or_key=self.issue.key)
+        issue_details_response = await application.api.get_issue(issue_id_or_key=issue_key)
         if issue_details_response.success and issue_details_response.result:
+            # Setting self.issue will trigger watch_issue which handles showing content
             self.issue = issue_details_response.result.issues[0]
 
-    def _request_adding_worklog(self, data: dict) -> None:
+    def _request_adding_worklog(self, data: dict | None) -> None:
         """Requests a worker to attempt to log work for the currently-selected item.
 
         Args:
@@ -413,12 +416,24 @@ class IssueDetailsWidget(Vertical):
         Returns:
             `None`.
         """
+        if not data:
+            return
+
+        time_spent = data.get('time_spent')
+        started = data.get('started')
+
+        if not time_spent or not started:
+            self.notify(
+                'Missing required fields for logging work', severity='error', title='Worklog'
+            )
+            return
+
         self.run_worker(
             self._add_worklog(
-                time_spent=data.get('time_spent'),
+                time_spent=time_spent,
                 time_remaining=data.get('time_remaining'),
                 description=data.get('description'),
-                started=data.get('started'),
+                started=started,
                 current_remaining_estimate=data.get('current_remaining_estimate'),
             )
         )
@@ -450,6 +465,8 @@ class IssueDetailsWidget(Vertical):
             self.notify(
                 'You need to provide the time spent on the task to log work', title='Worklog'
             )
+        elif not self.issue or not self.issue.key:
+            self.notify('No work item selected', severity='error', title='Worklog')
         else:
             application = cast('JiraApp', self.app)  # type:ignore[name-defined] # noqa: F821
             response: APIControllerResponse = await application.api.add_work_item_worklog(
@@ -526,6 +543,16 @@ class IssueDetailsWidget(Vertical):
             self._issue_supports_flagging = True
             self.work_item_flag_widget.show = False
 
+    def show_loading(self) -> None:
+        """Show the loading indicator and hide content."""
+        self.loading_container.display = True
+        self.content_container.display = False
+
+    def hide_loading(self) -> None:
+        """Hide the loading indicator and show content."""
+        self.loading_container.display = False
+        self.content_container.display = True
+
     def _setup_time_tracking(self, time_tracking_data: TimeTracking) -> None:
         self.time_tracking_container.remove_children(TimeTrackingWidget)
 
@@ -546,6 +573,10 @@ class IssueDetailsWidget(Vertical):
     def _build_payload_for_update(self) -> dict:
         # maps field id to field value
         payload: dict[str, Any] = {}
+
+        if not self.issue:
+            return payload
+
         # process the "static" fields
         if self.issue_summary_field.update_enabled:
             # check if the summary is not empty and has changed
@@ -561,7 +592,7 @@ class IssueDetailsWidget(Vertical):
                     self.issue_due_date_field.get_value_for_update()
                 )
 
-        if self.priority_selector.update_enabled:
+        if self.priority_selector.update_enabled and self.issue.priority:
             if work_item_priority_has_changed(
                 self.issue.priority, self.priority_selector.selection
             ):
@@ -577,10 +608,16 @@ class IssueDetailsWidget(Vertical):
                     )
 
         if self.issue_parent_field.update_enabled:
-            if work_item_parent_has_changed(
-                self.issue.parent_issue_key, self.issue_parent_field.value
-            ):
-                payload[self.issue_parent_field.jira_field_key] = self.issue_parent_field.value
+            # Get the string value, handling empty strings as None
+            # Input.value at runtime is always str, but typed as str | Reactive[str]
+            raw_value = self.issue_parent_field.value
+            # Ensure we have a string type for the comparison
+            parent_value: str | None = None
+            if raw_value:
+                parent_str = str(raw_value).strip()
+                parent_value = parent_str if parent_str else None
+            if work_item_parent_has_changed(self.issue.parent_issue_key, parent_value):
+                payload[self.issue_parent_field.jira_field_key] = parent_value
 
         if self.assignee_selector.update_enabled:
             # check if the assignee has changed
@@ -690,13 +727,14 @@ class IssueDetailsWidget(Vertical):
                     self.notify('Work item updated successfully.', title='Update Work Item')
                     issue_was_updated = True
                 else:
+                    error_msg = response.error if response.error else 'Unknown error'
                     self.notify(
                         'The work item was not updated.',
                         severity='error',
                         title='Update Work Item',
                     )
                     self.notify(
-                        response.error,
+                        error_msg,
                         severity='error',
                         title='Update Work Item',
                     )
@@ -759,7 +797,7 @@ class IssueDetailsWidget(Vertical):
             )
 
         if field_parent := fields.get('parent', {}):
-            if work_item.issue_type.hierarchy_level == 1:
+            if work_item.issue_type and work_item.issue_type.hierarchy_level == 1:
                 # we assume that this is work item whose type is at the top of the issue types hierarchy thus it
                 # can not have parent items
                 editable_fields[field_parent.get('key')] = False
@@ -801,7 +839,7 @@ class IssueDetailsWidget(Vertical):
                 selectable_users.append((user.display_name, user.account_id))
                 assignable_users.add(user.account_id)
 
-        if not selectable_users:
+        if not selectable_users and default_assignable_users:
             selectable_users = default_assignable_users
             for selectable_user in selectable_users:
                 assignable_users.add(selectable_user[1])
@@ -888,30 +926,53 @@ class IssueDetailsWidget(Vertical):
             `None`.
         """
 
-        # "reset" the form by setting the value of all its elements to the default
-        self.clear_form = True
-
         if not work_item:
+            # Don't show anything when no work item is selected
+            self.loading_container.display = False
+            self.content_container.display = False
+            # Reset the form when clearing
+            self.clear_form = True
             return
 
+        # Show loading indicator and hide content FIRST
+        self.show_loading()
+
+        # Run worker to populate the form (which will clear the form at the start)
+        self.run_worker(self._populate_work_item_details(work_item))
+
+    async def _populate_work_item_details(self, work_item: JiraIssue) -> None:
+        """Populates the form fields with the details of a given work item.
+
+        Args:
+            work_item: the work item to populate details for.
+
+        Returns:
+            `None`.
+        """
+
+        # Clear the form first while content is hidden
+        self.clear_form = True
+
         # fetch the list of status codes applicable for this work item and its type
-        self.run_worker(
-            self._retrieve_applicable_status_codes(
+        if (
+            work_item.project
+            and work_item.project.key
+            and work_item.issue_type
+            and work_item.issue_type.id
+        ):
+            await self._retrieve_applicable_status_codes(
                 work_item.project.key, work_item.issue_type.id, str(work_item.status.id)
             )
-        )
 
         # check which of the fields in the details form can be updated; diable the widgets of those that do not support
         # updates
         editable_fields: dict = self._determine_editable_fields(work_item)
 
         # fetch the list of assignable users for the work item
-        self.run_worker(
-            self._retrieve_users_assignable_to_work_item(
-                work_item.key,
-                work_item.assignee,
-                editable_fields.get(self.assignee_selector.jira_field_key),
-            )
+        await self._retrieve_users_assignable_to_work_item(
+            work_item.key,
+            work_item.assignee,
+            editable_fields.get(self.assignee_selector.jira_field_key),
         )
 
         # set the value fo the form fields based on the work item's data
@@ -928,9 +989,13 @@ class IssueDetailsWidget(Vertical):
         if reporter := work_item.reporter:
             self.reporter_field.value = reporter.display_name
 
-        self.issue_created_date_field.value = datetime.strftime(work_item.created, '%Y-%m-%d %H:%M')
+        if work_item.created:
+            self.issue_created_date_field.value = datetime.strftime(
+                work_item.created, '%Y-%m-%d %H:%M'
+            )
         self.issue_key_field.value = work_item.key
-        self.project_id_field.value = f'({work_item.project.key}) {work_item.project.name}'
+        if work_item.project and work_item.project.key and work_item.project.name:
+            self.project_id_field.value = f'({work_item.project.key}) {work_item.project.name}'
         self.issue_type_field.value = work_item.work_item_type_name
         # set the value of the parent field and determine if it can be edited
         self.issue_parent_field.value = work_item.parent_key
@@ -949,9 +1014,11 @@ class IssueDetailsWidget(Vertical):
             self.issue_due_date_field.jira_field_key
         )
         # update the priority selection depending on whether the issue supports prioritization
-        self._setup_priority_selector(work_item.edit_meta, work_item.priority)
+        if work_item.priority:
+            self._setup_priority_selector(work_item.edit_meta, work_item.priority)
         # set up time tracking widgets
-        self._setup_time_tracking(work_item.time_tracking)
+        if work_item.time_tracking:
+            self._setup_time_tracking(work_item.time_tracking)
         # set up the labels; if any exists
         if work_item.labels:
             self.work_item_labels_widget.value = ','.join(work_item.labels)
@@ -960,11 +1027,14 @@ class IssueDetailsWidget(Vertical):
         )
 
         # check if the work item has been flagged; and show a label at the top with a message for the user
-        self.run_worker(self._determine_issue_flagged_status(work_item))
+        await self._determine_issue_flagged_status(work_item)
 
         if CONFIGURATION.get().enable_updating_additional_fields:
             # add dynamic widgets to support updating additional fields including custom fields and other system fields
-            self.run_worker(self._add_dynamic_fields_widgets(work_item, editable_fields))
+            await self._add_dynamic_fields_widgets(work_item, editable_fields)
+
+        # Hide loading and show content
+        self.hide_loading()
 
     async def _add_dynamic_fields_widgets(
         self, work_item: JiraIssue, editable_fields: dict
@@ -1067,12 +1137,18 @@ class IssueDetailsWidget(Vertical):
                 user_picker.set_options(selectable_users)
                 if current_user_value:
                     user_picker.value = current_user_value
-                user_picker.update_enabled = editable_fields.get(user_picker.jira_field_key)
+                field_editable = editable_fields.get(user_picker.jira_field_key)
+                user_picker.update_enabled = (
+                    bool(field_editable) if field_editable is not None else False
+                )
             else:
                 if current_user_value:
                     user_picker.set_options([(current_user_value, current_user_value)])
                     user_picker.value = current_user_value
-                    user_picker.update_enabled = editable_fields.get(user_picker.jira_field_key)
+                    field_editable = editable_fields.get(user_picker.jira_field_key)
+                    user_picker.update_enabled = (
+                        bool(field_editable) if field_editable is not None else False
+                    )
                 else:
                     user_picker.update_enabled = False
 

@@ -52,7 +52,7 @@ async def test_multi_checkbox_custom_field_open_modal_screen(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -69,8 +69,8 @@ async def test_multi_checkbox_custom_field_open_modal_screen(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[0].id
             == 'customfield_10021'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
+        multi_select = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[0]
+        app.screen.set_focus(multi_select)
         # MultiSelectWidget is a SelectionList - it's directly focusable, no Input child
         assert isinstance(app.screen.focused, MultiSelectWidget)
         assert app.screen.focused.id == 'customfield_10021'
@@ -113,7 +113,7 @@ async def test_multi_checkbox_custom_field_dismiss_modal_screen_without_changes(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -130,8 +130,8 @@ async def test_multi_checkbox_custom_field_dismiss_modal_screen_without_changes(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[0].id
             == 'customfield_10021'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
+        multi_select = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[0]
+        app.screen.set_focus(multi_select)
         # MultiSelectWidget is a SelectionList - it's directly focusable, no Input child
         assert isinstance(app.screen.focused, MultiSelectWidget)
         assert app.screen.focused.id == 'customfield_10021'
@@ -182,7 +182,7 @@ async def test_multi_checkbox_custom_field_modal_screen_press_update_without_cha
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -199,8 +199,8 @@ async def test_multi_checkbox_custom_field_modal_screen_press_update_without_cha
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[0].id
             == 'customfield_10021'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
+        multi_select = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[0]
+        app.screen.set_focus(multi_select)
         # MultiSelectWidget is a SelectionList - it's directly focusable, no Input child
         assert isinstance(app.screen.focused, MultiSelectWidget)
         assert app.screen.focused.id == 'customfield_10021'
@@ -269,7 +269,7 @@ async def test_custom_field_url_with_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -286,9 +286,8 @@ async def test_custom_field_url_with_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[1].id
             == 'customfield_2'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        url_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[1]
+        app.screen.set_focus(url_widget)
         assert isinstance(app.screen.focused, URLWidget)
         assert app.screen.focused.id == 'customfield_2'
         assert app.screen.focused.value == 'https://foo.bar'
@@ -318,6 +317,7 @@ async def test_custom_field_url_without_value(
     app.config.search_results_per_page = 10
     app.config.show_issue_web_links = False
     app.config.enable_updating_additional_fields = True
+    assert jira_issues_with_custom_fields[0].custom_fields is not None
     jira_issues_with_custom_fields[0].custom_fields['customfield_2'] = None
     get_issue_mock.return_value = APIControllerResponse(
         result=JiraIssueSearchResponse(issues=[jira_issues_with_custom_fields[0]])
@@ -329,7 +329,7 @@ async def test_custom_field_url_without_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -346,9 +346,8 @@ async def test_custom_field_url_without_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[1].id
             == 'customfield_2'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        url_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[1]
+        app.screen.set_focus(url_widget)
         assert isinstance(app.screen.focused, URLWidget)
         assert app.screen.focused.id == 'customfield_2'
         assert app.screen.focused.value == ''
@@ -388,7 +387,7 @@ async def test_custom_field_float_with_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -405,10 +404,10 @@ async def test_custom_field_float_with_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[2].id
             == 'customfield_3'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        numeric_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[
+            2
+        ]
+        app.screen.set_focus(numeric_widget)
         assert isinstance(app.screen.focused, NumericInputWidget)
         assert app.screen.focused.id == 'customfield_3'
         assert app.screen.focused.value == '12.34'
@@ -438,6 +437,7 @@ async def test_custom_field_float_without_value(
     app.config.search_results_per_page = 10
     app.config.show_issue_web_links = False
     app.config.enable_updating_additional_fields = True
+    assert jira_issues_with_custom_fields[0].custom_fields is not None
     jira_issues_with_custom_fields[0].custom_fields['customfield_3'] = None
     get_issue_mock.return_value = APIControllerResponse(
         result=JiraIssueSearchResponse(issues=[jira_issues_with_custom_fields[0]])
@@ -449,7 +449,7 @@ async def test_custom_field_float_without_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -466,10 +466,10 @@ async def test_custom_field_float_without_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[2].id
             == 'customfield_3'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        numeric_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[
+            2
+        ]
+        app.screen.set_focus(numeric_widget)
         assert isinstance(app.screen.focused, NumericInputWidget)
         assert app.screen.focused.id == 'customfield_3'
         assert app.screen.focused.value == ''
@@ -509,7 +509,7 @@ async def test_custom_field_text_with_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -526,11 +526,8 @@ async def test_custom_field_text_with_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[3].id
             == 'customfield_4'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        text_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[3]
+        app.screen.set_focus(text_widget)
         assert isinstance(app.screen.focused, TextInputWidget)
         assert app.screen.focused.id == 'customfield_4'
         assert app.screen.focused.value == 'hello world!'
@@ -562,6 +559,7 @@ async def test_custom_field_text_without_value(
     app.config.search_results_per_page = 10
     app.config.show_issue_web_links = False
     app.config.enable_updating_additional_fields = True
+    assert jira_issues_with_custom_fields[0].custom_fields is not None
     jira_issues_with_custom_fields[0].custom_fields['customfield_4'] = custom_field_value
     get_issue_mock.return_value = APIControllerResponse(
         result=JiraIssueSearchResponse(issues=[jira_issues_with_custom_fields[0]])
@@ -573,7 +571,7 @@ async def test_custom_field_text_without_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -590,11 +588,8 @@ async def test_custom_field_text_without_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[3].id
             == 'customfield_4'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        text_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[3]
+        app.screen.set_focus(text_widget)
         assert isinstance(app.screen.focused, TextInputWidget)
         assert app.screen.focused.id == 'customfield_4'
         assert app.screen.focused.value == ''
@@ -634,7 +629,7 @@ async def test_custom_field_datetime_with_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -651,12 +646,10 @@ async def test_custom_field_datetime_with_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[4].id
             == 'customfield_5'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        datetime_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[
+            4
+        ]
+        app.screen.set_focus(datetime_widget)
         assert isinstance(app.screen.focused, DateTimeInputWidget)
         assert app.screen.focused.id == 'customfield_5'
         assert app.screen.focused.value == '2025-12-30 11:22:33'
@@ -688,6 +681,7 @@ async def test_custom_field_datetime_without_value(
     app.config.search_results_per_page = 10
     app.config.show_issue_web_links = False
     app.config.enable_updating_additional_fields = True
+    assert jira_issues_with_custom_fields[0].custom_fields is not None
     jira_issues_with_custom_fields[0].custom_fields['customfield_5'] = custom_field_value
     get_issue_mock.return_value = APIControllerResponse(
         result=JiraIssueSearchResponse(issues=[jira_issues_with_custom_fields[0]])
@@ -699,7 +693,7 @@ async def test_custom_field_datetime_without_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -716,12 +710,10 @@ async def test_custom_field_datetime_without_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[4].id
             == 'customfield_5'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        datetime_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[
+            4
+        ]
+        app.screen.set_focus(datetime_widget)
         assert isinstance(app.screen.focused, DateTimeInputWidget)
         assert app.screen.focused.id == 'customfield_5'
         assert app.screen.focused.value == ''
@@ -761,7 +753,7 @@ async def test_custom_field_date_with_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -778,13 +770,8 @@ async def test_custom_field_date_with_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[5].id
             == 'customfield_6'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        date_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[5]
+        app.screen.set_focus(date_widget)
         assert isinstance(app.screen.focused, DateInputWidget)
         assert app.screen.focused.id == 'customfield_6'
         assert app.screen.focused.value == '2025-12-31'
@@ -816,6 +803,7 @@ async def test_custom_field_date_without_value(
     app.config.search_results_per_page = 10
     app.config.show_issue_web_links = False
     app.config.enable_updating_additional_fields = True
+    assert jira_issues_with_custom_fields[0].custom_fields is not None
     jira_issues_with_custom_fields[0].custom_fields['customfield_6'] = custom_field_value
     get_issue_mock.return_value = APIControllerResponse(
         result=JiraIssueSearchResponse(issues=[jira_issues_with_custom_fields[0]])
@@ -827,7 +815,7 @@ async def test_custom_field_date_without_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -844,13 +832,8 @@ async def test_custom_field_date_without_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[5].id
             == 'customfield_6'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        date_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[5]
+        app.screen.set_focus(date_widget)
         assert isinstance(app.screen.focused, DateInputWidget)
         assert app.screen.focused.id == 'customfield_6'
         assert app.screen.focused.value == ''
@@ -890,7 +873,7 @@ async def test_custom_field_selection_with_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -907,14 +890,10 @@ async def test_custom_field_selection_with_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[6].id
             == 'customfield_7'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        selection_widget = (
+            app.screen.issue_details_widget.dynamic_fields_widgets_container.children[6]
+        )
+        app.screen.set_focus(selection_widget)
         assert isinstance(app.screen.focused, SelectionWidget)
         assert app.screen.focused.id == 'customfield_7'
         assert app.screen.focused.selection == '2'
@@ -944,6 +923,7 @@ async def test_custom_field_selection_without_value(
     app.config.search_results_per_page = 10
     app.config.show_issue_web_links = False
     app.config.enable_updating_additional_fields = True
+    assert jira_issues_with_custom_fields[0].custom_fields is not None
     jira_issues_with_custom_fields[0].custom_fields['customfield_7'] = None
     get_issue_mock.return_value = APIControllerResponse(
         result=JiraIssueSearchResponse(issues=[jira_issues_with_custom_fields[0]])
@@ -955,7 +935,7 @@ async def test_custom_field_selection_without_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -972,14 +952,10 @@ async def test_custom_field_selection_without_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[6].id
             == 'customfield_7'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        selection_widget = (
+            app.screen.issue_details_widget.dynamic_fields_widgets_container.children[6]
+        )
+        app.screen.set_focus(selection_widget)
         assert isinstance(app.screen.focused, SelectionWidget)
         assert app.screen.focused.id == 'customfield_7'
         assert app.screen.focused.selection is None
@@ -1019,7 +995,7 @@ async def test_custom_field_labels_with_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -1036,15 +1012,8 @@ async def test_custom_field_labels_with_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[7].id
             == 'customfield_8'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        labels_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[7]
+        app.screen.set_focus(labels_widget)
         assert isinstance(app.screen.focused, LabelsWidget)
         assert app.screen.focused.id == 'customfield_8'
         assert app.screen.focused.value == 'label1,label2'
@@ -1076,6 +1045,7 @@ async def test_custom_field_labels_without_value(
     app.config.search_results_per_page = 10
     app.config.show_issue_web_links = False
     app.config.enable_updating_additional_fields = True
+    assert jira_issues_with_custom_fields[0].custom_fields is not None
     jira_issues_with_custom_fields[0].custom_fields['customfield_8'] = custom_field_value
     get_issue_mock.return_value = APIControllerResponse(
         result=JiraIssueSearchResponse(issues=[jira_issues_with_custom_fields[0]])
@@ -1087,7 +1057,7 @@ async def test_custom_field_labels_without_value(
                 issues=jira_issues_with_custom_fields, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -1104,15 +1074,8 @@ async def test_custom_field_labels_without_value(
             app.screen.issue_details_widget.dynamic_fields_widgets_container.children[7].id
             == 'customfield_8'
         )
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
-        await pilot.press('tab')
+        labels_widget = app.screen.issue_details_widget.dynamic_fields_widgets_container.children[7]
+        app.screen.set_focus(labels_widget)
         assert isinstance(app.screen.focused, LabelsWidget)
         assert app.screen.focused.id == 'customfield_8'
         assert app.screen.focused.value == ''
@@ -1152,7 +1115,7 @@ async def test_components_field_open_modal_screen(
                 issues=jira_issues_with_components_field, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -1209,7 +1172,7 @@ async def test_components_field_open_modal_screen_without_initial_value(
                 issues=jira_issues_with_components_field, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -1261,7 +1224,7 @@ async def test_components_field_dismiss_modal_screen_without_changes(
                 issues=jira_issues_with_components_field, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -1321,7 +1284,7 @@ async def test_components_field_modal_screen_press_update_without_changes(
                 issues=jira_issues_with_components_field, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
@@ -1382,7 +1345,7 @@ async def test_components_field_modal_screen_press_update_with_changes(
                 issues=jira_issues_with_components_field, next_page_token=None, is_last=None
             ),
         )
-        cast('MainScreen', app.screen)  # type:ignore[name-defined] # noqa: F821
+        cast('MainScreen', app.screen)
         # WHEN/THEN
         assert isinstance(app.screen, MainScreen)
         await pilot.press('ctrl+r')
